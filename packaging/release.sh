@@ -28,16 +28,15 @@ cp target/x86_64-unknown-linux-musl/release/herdrscreen "$DIST/herdrscreen-linux
 
 echo "== RPMs"
 TOP="$PWD/build-rpm"
-rm -rf "$TOP"
-mkdir -p "$TOP"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
-cp "$DIST/herdrscreen-linux-x86_64" "$TOP/SOURCES/herdrscreen"
-cp LICENSE NOTICE README.md CHANGELOG.md "$TOP/SOURCES/"
-cp packaging/herdrscreen.spec "$TOP/SPECS/"
 for tag in el8 el9 el10 fc43 fc44; do
+  rm -rf "$TOP"
+  mkdir -p "$TOP"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+  cp "$DIST/herdrscreen-linux-x86_64" "$TOP/SOURCES/herdrscreen"
+  cp LICENSE NOTICE README.md CHANGELOG.md "$TOP/SOURCES/"
+  cp packaging/herdrscreen.spec "$TOP/SPECS/"
   rpmbuild -bb \
     --define "_topdir $TOP" \
     --define "dist .$tag" \
-    --define "_version $VERSION" \
     "$TOP/SPECS/herdrscreen.spec" >/dev/null
   mv "$TOP/RPMS/x86_64/herdrscreen-$VERSION-1.$tag.x86_64.rpm" "$DIST/"
 done

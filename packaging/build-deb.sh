@@ -7,6 +7,7 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 BIN="${1:-$REPO/target/x86_64-unknown-linux-musl/release/herdrscreen}"
 VERSION="${HERDRSCREEN_VERSION:-0.1.0}"
 OUT="${2:-$REPO/dist/herdrscreen_${VERSION}_amd64.deb}"
+OUT="$(cd "$(dirname "$OUT")" && pwd)/$(basename "$OUT")"
 ROOT="$REPO/dist/deb-root"
 
 rm -rf "$ROOT"
