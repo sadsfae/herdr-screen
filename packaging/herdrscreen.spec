@@ -1,5 +1,5 @@
 Name:           herdrscreen
-Version:        0.1.0
+Version:        %{?version}%{!?version:0.1.0}
 Release:        1%{?dist}
 Summary:        Terminal workspace manager for AI coding agents (GNU screen edition)
 License:        Apache-2.0

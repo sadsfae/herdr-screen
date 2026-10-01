@@ -37,12 +37,13 @@ for tag in el8 el9 el10 fc43 fc44; do
   rpmbuild -bb \
     --define "_topdir $TOP" \
     --define "dist .$tag" \
+    --define "version $VERSION" \
     "$TOP/SPECS/herdrscreen.spec" >/dev/null
   mv "$TOP/RPMS/x86_64/herdrscreen-$VERSION-1.$tag.x86_64.rpm" "$DIST/"
 done
 
 echo "== deb"
-packaging/build-deb.sh "$DIST/herdrscreen-linux-x86_64" "$DIST/herdrscreen_${VERSION}_amd64.deb"
+HERDRSCREEN_VERSION="$VERSION" packaging/build-deb.sh "$DIST/herdrscreen-linux-x86_64" "$DIST/herdrscreen_${VERSION}_amd64.deb"
 
 echo "== source tarball"
 git archive --format=tar.gz -o "$DIST/herdrscreen-$VERSION.tar.gz" HEAD
