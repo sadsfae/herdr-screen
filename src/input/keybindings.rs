@@ -394,7 +394,7 @@ mod tests {
     #[test]
     fn repeated_prefix_ignores_generated_character_fallback() {
         let config: crate::config::Config = toml::from_str(
-            "[keys]\nprefix = \"ctrl+a\"\nhelp = \"prefix+a\"\n",
+            "[keys]\nprefix = \"ctrl+a\"\nhelp = \"prefix+a\"\nlast_tab = \"\"\n",
         )
         .unwrap();
         let keybinds = config.keybinds();

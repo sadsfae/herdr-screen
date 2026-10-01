@@ -25,7 +25,7 @@ Initial herdrscreen release: a GNU screen edition hard fork of Herdr 0.9.3
 - Bind `keys.last_tab` to focus the previously focused tab. The `prefix+prefix` binding runs an action when the prefix key is pressed again, so with `prefix = "ctrl+a"` and `last_tab = "prefix+prefix"`, `ctrl+a` `ctrl+a` toggles tabs like GNU screen and tmux. Unset by default.
 
 ### Changed
-- Continuous package builds: a GitHub Actions workflow builds the musl binary, RPMs (el8/el9/el10/fc43/fc44), deb, source tarball, and SHA256SUMS on push to main (published to a rolling `nightly` prerelease) and on `v*` tags (published as a versioned release). `release.sh` accepts `VERSION`; the RPM spec marks installed doc/license paths so Ubuntu rpmbuild works.
+- Continuous package builds: a GitHub Actions workflow builds the musl binary, RPMs (el8/el9/el10/fc43/fc44), deb, Slackware txz, source tarball, and SHA256SUMS on push to main (published to a rolling `nightly` prerelease) and on `v*` tags (published as a versioned release). `release.sh` accepts `VERSION`; the RPM spec marks installed doc/license paths so Ubuntu rpmbuild works. The AUR PKGBUILD tracks the latest release checksums.
 
 ## [0.9.3] - 2026-09-29
 

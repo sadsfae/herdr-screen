@@ -1108,20 +1108,6 @@ pub(crate) struct SelfUpdateOptions {
     pub(crate) live_handoff: bool,
 }
 
-pub(crate) fn parse_self_update_args(args: &[String]) -> Result<SelfUpdateOptions, String> {
-    let mut options = SelfUpdateOptions::default();
-    for arg in args {
-        match arg.as_str() {
-            "--handoff" => options.live_handoff = true,
-            "--help" | "-h" => {
-                return Err("usage: herdr update [--handoff]".to_string());
-            }
-            _ => return Err(format!("unknown update option: {arg}")),
-        }
-    }
-    Ok(options)
-}
-
 #[cfg(not(windows))]
 fn prompt_to_stop_old_servers_before_update(
     plans: &[RunningServerUpdatePlan],
@@ -2996,24 +2982,6 @@ mod tests {
         assert!(running_inside_herdr_env(Some(crate::HERDR_ENV_VALUE)));
         assert!(!running_inside_herdr_env(None));
         assert!(!running_inside_herdr_env(Some("0")));
-    }
-
-    #[test]
-    fn self_update_args_gate_live_handoff() {
-        assert_eq!(
-            parse_self_update_args(&[]).unwrap(),
-            SelfUpdateOptions {
-                live_handoff: false
-            }
-        );
-        assert_eq!(
-            parse_self_update_args(&["--handoff".to_string()]).unwrap(),
-            SelfUpdateOptions { live_handoff: true }
-        );
-        assert_eq!(
-            parse_self_update_args(&["--unknown".to_string()]).unwrap_err(),
-            "unknown update option: --unknown"
-        );
     }
 
     #[test]

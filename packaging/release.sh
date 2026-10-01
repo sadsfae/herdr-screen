@@ -45,9 +45,12 @@ done
 echo "== deb"
 HERDRSCREEN_VERSION="$VERSION" packaging/build-deb.sh "$DIST/herdrscreen-linux-x86_64" "$DIST/herdrscreen_${VERSION}_amd64.deb"
 
+echo "== slackware txz"
+HERDRSCREEN_VERSION="$VERSION" packaging/build-slack.sh "$DIST/herdrscreen-linux-x86_64" "$DIST/herdrscreen-${VERSION}-x86_64-1.txz"
+
 echo "== source tarball"
 git archive --format=tar.gz -o "$DIST/herdrscreen-$VERSION.tar.gz" HEAD
 
 echo "== checksums"
-( cd "$DIST" && sha256sum -b herdrscreen-linux-x86_64 herdrscreen-*.rpm herdrscreen_*.deb herdrscreen-*.tar.gz > SHA256SUMS )
+( cd "$DIST" && sha256sum -b herdrscreen-linux-x86_64 herdrscreen-*.rpm herdrscreen_*.deb herdrscreen-*.txz herdrscreen-*.tar.gz > SHA256SUMS )
 echo "done: $(ls -1 "$DIST")"

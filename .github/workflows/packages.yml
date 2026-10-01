@@ -38,7 +38,7 @@ jobs:
       - name: Install package build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y rpm musl-tools
+          sudo apt-get install -y rpm musl-tools xz-utils
 
       # Zig downloads come from ziglang.org or a random community mirror and
       # vary from seconds to minutes; reuse the verified install instead.
@@ -98,6 +98,7 @@ jobs:
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           generate_release_notes: true
+          update_release: true
           files: dist/*
 
       - name: Publish nightly release
