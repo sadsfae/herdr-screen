@@ -34,7 +34,7 @@ Description: Terminal workspace manager for AI coding agents (GNU screen edition
 EOF
 
 (cd "$ROOT/DEBIAN" && tar --format=gnu -czf ../control.tar.gz .)
-(cd "$ROOT" && tar --format=gnu -czf ../data.tar.gz usr)
+(cd "$ROOT" && tar --format=gnu -czf data.tar.gz usr)
 cd "$ROOT"
 printf '2.0\n' > debian-binary
 ar r "$OUT" debian-binary control.tar.gz data.tar.gz 2>/dev/null || ar rcs "$OUT" debian-binary control.tar.gz data.tar.gz
