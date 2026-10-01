@@ -34,13 +34,10 @@ agents. It keeps Herdr's engine and adds:
   `~/.local/state/herdr`), so herdrscreen is a drop-in replacement for existing Herdr setups.
 - No curl to bash: native packages for Red Hat, Debian, Arch, Slackware, and FreeBSD.
 
-[Install](#install)
-  - [RPM](#rpm)
-  - [Deb](#deb)
-  - [AUR](#aur)
-  - [Slackware](#slackware)
-  - [FreeBSD](#freebsd)
+[Install](#install) · [RPM](#rpm) · [Deb](#deb) · [AUR](#aur) · [Slackware](#slackware) · [FreeBSD](#freebsd)
+
 [About](#about)
+
 [Upstream herdr Docs](#upstream-herdr-docs)
 
 Licensing and attribution: Apache-2.0. See [LICENSE](LICENSE), [NOTICE](NOTICE), and
