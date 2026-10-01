@@ -8,7 +8,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-VERSION="0.1.0"
+VERSION="${VERSION:-0.1.0}"
 REPO="https://github.com/sadsfae/herdrscreen"
 DIST="dist"
 ZIG="${ZIG:-/tmp/zig-x86_64-linux-0.16.0/zig}"
