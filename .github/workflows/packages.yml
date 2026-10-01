@@ -128,3 +128,26 @@ jobs:
             gh release delete-asset nightly "$asset" --repo "$GITHUB_REPOSITORY" --yes
           done
           gh release upload nightly dist/* --repo "$GITHUB_REPOSITORY" --clobber
+
+  # Keep the README install commands pointing at the released version.
+  sync-readme:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: main
+      - name: Pin README and push
+        run: |
+          python3 scripts/sync-readme-version.py "$GITHUB_REF_NAME"
+          if git diff --quiet README.md; then
+            echo "README already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "docs: pin install commands to $GITHUB_REF_NAME"
+          git push
