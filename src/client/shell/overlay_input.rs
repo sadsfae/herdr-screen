@@ -207,6 +207,65 @@ impl ClientShellState {
         self.overlay = Some(ClientShellOverlay::Navigator(navigator));
     }
 
+    pub(super) fn open_window_list_overlay(&mut self) {
+        let mut overlay = ClientWindowListOverlay {
+            selected: None,
+            scroll: 0,
+        };
+        let rows = super::aggregate_navigation::window_list_rows(
+            &self.endpoints,
+            &self.active_endpoint_id,
+        );
+        overlay.selected = rows
+            .iter()
+            .find(|row| row.current)
+            .map(|row| row.target.clone());
+        self.overlay = Some(ClientShellOverlay::WindowList(overlay));
+    }
+
+    pub(super) fn move_window_list_selection(&mut self, delta: isize) {
+        let Some(ClientShellOverlay::WindowList(overlay)) = self.overlay.as_mut() else {
+            return;
+        };
+        let rows = super::aggregate_navigation::window_list_rows(
+            &self.endpoints,
+            &self.active_endpoint_id,
+        );
+        if rows.is_empty() {
+            overlay.selected = None;
+            return;
+        }
+        let selected =
+            super::aggregate_navigation::window_list_selected_index(&rows, overlay).unwrap_or(0);
+        let next =
+            (selected as isize + delta).clamp(0, rows.len().saturating_sub(1) as isize) as usize;
+        overlay.selected = Some(rows[next].target.clone());
+    }
+
+    pub(super) fn accept_window_list_selection(&mut self, outcome: &mut ClientShellInput) {
+        let target = self.overlay.as_ref().and_then(|overlay| match overlay {
+            ClientShellOverlay::WindowList(overlay) => {
+                let rows = super::aggregate_navigation::window_list_rows(
+                    &self.endpoints,
+                    &self.active_endpoint_id,
+                );
+                super::aggregate_navigation::window_list_selected_index(&rows, overlay)
+                    .map(|index| rows[index].target.tab_id.clone())
+            }
+            _ => None,
+        });
+        self.overlay = None;
+        let Some(tab_id) = target else {
+            return;
+        };
+        self.push_endpoint_method(
+            crate::api::schema::Method::TabFocus(crate::api::schema::TabTarget {
+                tab_id,
+            }),
+            outcome,
+        );
+    }
+
     pub(super) fn move_navigator_selection(&mut self, delta: isize) {
         let Some(ClientShellOverlay::Navigator(navigator)) = self.overlay.as_mut() else {
             return;
@@ -627,6 +686,30 @@ impl ClientShellState {
 
         if self.route_worktree_overlay_key(key, outcome) {
             return;
+        }
+        if matches!(self.overlay, Some(ClientShellOverlay::WindowList(_))) {
+            let (code, modifiers) =
+                crate::config::normalize_key_combo((key.code, key.modifiers));
+            if code == KeyCode::Esc {
+                self.overlay = None;
+                outcome.repaint = true;
+                return;
+            }
+            if code == KeyCode::Enter {
+                self.accept_window_list_selection(outcome);
+                outcome.repaint = true;
+                return;
+            }
+            if matches!(code, KeyCode::Down | KeyCode::Char('j')) && modifiers.is_empty() {
+                self.move_window_list_selection(1);
+                outcome.repaint = true;
+                return;
+            }
+            if matches!(code, KeyCode::Up | KeyCode::Char('k')) && modifiers.is_empty() {
+                self.move_window_list_selection(-1);
+                outcome.repaint = true;
+                return;
+            }
         }
         if matches!(self.overlay, Some(ClientShellOverlay::Navigator(_))) {
             let (code, modifiers) = crate::config::normalize_key_combo((key.code, key.modifiers));

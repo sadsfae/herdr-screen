@@ -11,6 +11,9 @@ agents. It keeps Herdr's engine and adds:
 - GNU screen keybindings by default: prefix is `ctrl+a` (set `prefix = "ctrl+b"` for the
   tmux style), and `ctrl+a ctrl+a` toggles back to the last focused tab
   (`keys.last_tab = "prefix+prefix"`).
+- Screen-style overview and lock: `ctrl+a "` lists every tab across workspaces (mouse or
+  arrows select, enter focuses), and `ctrl+a ctrl+x` locks the terminal via
+  `keys.lock_command` (default `loginctl lock-session`).
 - No self-update: `herdrscreen update` is stubbed and version/manifest checks are off. Install
   updates from the [releases page](https://github.com/sadsfae/herdrscreen/releases): RPMs for
   EL8/EL9/EL10 and Fedora, a deb for Debian/Ubuntu, and an AUR package.

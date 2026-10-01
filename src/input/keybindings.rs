@@ -28,6 +28,7 @@ pub(crate) enum KeybindAction {
     SwitchTab(usize),
     FocusAgent(usize),
     WorkspacePicker,
+    WindowList,
     PreviousWorkspace,
     NextWorkspace,
     PreviousAgent,
@@ -52,6 +53,7 @@ pub(crate) enum KeybindAction {
     SplitVertical,
     SplitHorizontal,
     ClosePane,
+    Lock,
     EditScrollback,
     ClearPane,
     CopyMode,
@@ -100,6 +102,7 @@ pub(crate) fn resolve_non_indexed_action(
         (&keybinds.help, KeybindAction::Help),
         (&keybinds.settings, KeybindAction::Settings),
         (&keybinds.workspace_picker, KeybindAction::WorkspacePicker),
+        (&keybinds.window_list, KeybindAction::WindowList),
         (&keybinds.new_workspace, KeybindAction::NewWorkspace),
         (&keybinds.new_worktree, KeybindAction::NewWorktree),
         (&keybinds.open_worktree, KeybindAction::OpenWorktree),
@@ -142,6 +145,7 @@ pub(crate) fn resolve_non_indexed_action(
         (&keybinds.split_vertical, KeybindAction::SplitVertical),
         (&keybinds.split_horizontal, KeybindAction::SplitHorizontal),
         (&keybinds.close_pane, KeybindAction::ClosePane),
+        (&keybinds.lock, KeybindAction::Lock),
         (&keybinds.zoom, KeybindAction::Zoom),
         (&keybinds.resize_mode, KeybindAction::EnterResizeMode),
         (&keybinds.resize_pane_left, KeybindAction::ResizePaneLeft),
@@ -293,6 +297,32 @@ mod tests {
                 &TerminalKey::new(KeyCode::Char('k'), KeyModifiers::SHIFT)
             ),
             Some(KeybindMatch::Action(KeybindAction::SwapPaneUp))
+        ));
+    }
+
+    #[test]
+    fn screen_window_list_and_lock_bindings_resolve() {
+        let keybinds = crate::config::Config::default().keybinds();
+        assert!(matches!(
+            resolve_prefix_binding(
+                &keybinds,
+                &TerminalKey::new(KeyCode::Char('"'), KeyModifiers::SHIFT)
+            ),
+            Some(KeybindMatch::Action(KeybindAction::WindowList))
+        ));
+        assert!(matches!(
+            resolve_prefix_binding(
+                &keybinds,
+                &TerminalKey::new(KeyCode::Char('x'), KeyModifiers::CONTROL)
+            ),
+            Some(KeybindMatch::Action(KeybindAction::Lock))
+        ));
+        assert!(matches!(
+            resolve_prefix_binding(
+                &keybinds,
+                &TerminalKey::new(KeyCode::Char('x'), KeyModifiers::empty())
+            ),
+            Some(KeybindMatch::Action(KeybindAction::ClosePane))
         ));
     }
 

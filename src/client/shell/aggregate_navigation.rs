@@ -483,3 +483,63 @@ pub(super) fn selected_navigator_target(
 ) -> Option<ClientNavigatorTarget> {
     navigator_selected_index(rows, navigator).map(|index| rows[index].target.clone())
 }
+
+#[derive(Debug)]
+pub(super) struct ClientWindowListRow {
+    pub(super) label: String,
+    pub(super) workspace: String,
+    pub(super) current: bool,
+    pub(super) target: ClientWindowListTarget,
+}
+
+/// Screen-style window list: one row per tab across every workspace of the
+/// active endpoint, in workspace order.
+pub(super) fn window_list_rows(
+    endpoints: &[ClientShellEndpoint],
+    active_endpoint_id: &ClientEndpointId,
+) -> Vec<ClientWindowListRow> {
+    let Some(endpoint) = endpoints
+        .iter()
+        .find(|endpoint| endpoint.endpoint_id == *active_endpoint_id)
+        .or_else(|| endpoints.first())
+    else {
+        return Vec::new();
+    };
+    let Some(snapshot) = endpoint.snapshot.as_deref() else {
+        return Vec::new();
+    };
+    let mut rows = Vec::new();
+    for workspace in &snapshot.workspaces {
+        for tab in snapshot
+            .tabs
+            .iter()
+            .filter(|tab| tab.workspace_id == workspace.workspace_id)
+        {
+            let label = (tab.custom_label || tab.label.parse::<usize>().is_err())
+                .then_some(tab.label.as_str())
+                .unwrap_or(workspace.label.as_str());
+            rows.push(ClientWindowListRow {
+                label: label.to_owned(),
+                workspace: workspace.label.clone(),
+                current: tab.focused,
+                target: ClientWindowListTarget {
+                    tab_id: tab.tab_id.clone(),
+                },
+            });
+        }
+    }
+    rows
+}
+
+pub(super) fn window_list_selected_index(
+    rows: &[ClientWindowListRow],
+    overlay: &ClientWindowListOverlay,
+) -> Option<usize> {
+    match overlay.selected.as_ref() {
+        Some(target) => rows.iter().position(|row| row.target == *target),
+        None => rows
+            .iter()
+            .position(|row| row.current)
+            .or_else(|| (!rows.is_empty()).then_some(0)),
+    }
+}

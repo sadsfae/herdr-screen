@@ -1611,6 +1611,50 @@ impl ClientShellState {
             }
             return;
         }
+        if matches!(self.overlay, Some(ClientShellOverlay::WindowList(_))) {
+            let row_hit = self
+                .hits
+                .window_list_rows
+                .iter()
+                .find(|(rect, _)| super::contains(*rect, point))
+                .cloned();
+            match mouse.kind {
+                MouseEventKind::Moved => {
+                    if let Some((_, target)) = row_hit {
+                        if let Some(ClientShellOverlay::WindowList(overlay)) =
+                            self.overlay.as_mut()
+                        {
+                            overlay.selected = Some(target);
+                        }
+                        outcome.repaint = true;
+                    }
+                }
+                MouseEventKind::Down(MouseButton::Left) => {
+                    if let Some((_, target)) = row_hit {
+                        if let Some(ClientShellOverlay::WindowList(overlay)) =
+                            self.overlay.as_mut()
+                        {
+                            overlay.selected = Some(target);
+                        }
+                        self.accept_window_list_selection(outcome);
+                        outcome.repaint = true;
+                    } else if !super::contains(self.hits.window_list_popup, point) {
+                        self.overlay = None;
+                        outcome.repaint = true;
+                    }
+                }
+                MouseEventKind::ScrollUp => {
+                    self.move_window_list_selection(-3);
+                    outcome.repaint = true;
+                }
+                MouseEventKind::ScrollDown => {
+                    self.move_window_list_selection(3);
+                    outcome.repaint = true;
+                }
+                _ => {}
+            }
+            return;
+        }
         if matches!(self.overlay, Some(ClientShellOverlay::Navigator(_))) {
             let row_hit = self
                 .hits

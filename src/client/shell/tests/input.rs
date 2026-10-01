@@ -173,6 +173,26 @@ fn modal_paste_inserts_clipboard_text_through_overlay_text_path() {
 }
 
 #[test]
+fn window_list_overlay_renders_and_highlights_current_tab() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    state.overlay = Some(ClientShellOverlay::WindowList(ClientWindowListOverlay {
+        selected: None,
+        scroll: 0,
+    }));
+    let frame = state.compose(106, 20).expect("window list frame");
+    let text = frame
+        .cells
+        .chunks(usize::from(frame.width))
+        .map(|row| row.iter().map(|cell| cell.symbol.as_str()).collect::<String>())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(text.contains("Window list"));
+    assert!(text.contains("client-shell"));
+}
+
+#[test]
 fn client_shell_graphics_follow_final_shell_origin_and_local_overlay_visibility() {
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
     state.set_snapshot(Box::new(snapshot()));
@@ -723,6 +743,63 @@ fn double_prefix_focuses_last_tab_when_bound() {
             if matches!(
                 &request.method,
                 crate::api::schema::Method::TabFocus(target) if target.tab_id == "tab_1"
+            )
+    ));
+}
+
+#[test]
+fn window_list_overlay_selects_and_focuses_tabs() {
+    let mut config = Config::default();
+    config.keys.prefix = crate::config::BindingConfig::One("ctrl+a".to_owned());
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+
+    let mut initial = snapshot();
+    let mut tab2 = initial.tabs[0].clone();
+    tab2.tab_id = "tab_2".into();
+    tab2.number = 2;
+    tab2.focused = false;
+    initial.tabs.push(tab2);
+    let mut pane2 = initial.panes[0].clone();
+    pane2.pane_id = "pane_2".into();
+    pane2.tab_id = "tab_2".into();
+    pane2.focused = false;
+    initial.panes.push(pane2);
+    state.set_snapshot(Box::new(initial));
+
+    let _ = state.handle_raw_events(vec![RawInputEvent::Key(
+        crate::input::TerminalKey::new(KeyCode::Char('a'), KeyModifiers::CONTROL),
+    )]);
+    assert_eq!(state.mode, ClientShellMode::Prefix);
+
+    let opened = state.handle_raw_events(vec![RawInputEvent::Key(
+        crate::input::TerminalKey::new(KeyCode::Char('"'), KeyModifiers::SHIFT),
+    )]);
+    assert!(opened.repaint);
+    assert!(matches!(
+        &state.overlay,
+        Some(ClientShellOverlay::WindowList(overlay))
+            if overlay.selected.as_ref().map(|target| target.tab_id.as_str()) == Some("tab_1")
+    ));
+
+    let _ = state.handle_raw_events(vec![RawInputEvent::Key(
+        crate::input::TerminalKey::new(KeyCode::Down, KeyModifiers::empty()),
+    )]);
+    assert!(matches!(
+        &state.overlay,
+        Some(ClientShellOverlay::WindowList(overlay))
+            if overlay.selected.as_ref().map(|target| target.tab_id.as_str()) == Some("tab_2")
+    ));
+
+    let accepted = state.handle_raw_events(vec![RawInputEvent::Key(
+        crate::input::TerminalKey::new(KeyCode::Enter, KeyModifiers::empty()),
+    )]);
+    assert!(state.overlay.is_none());
+    assert!(matches!(
+        &accepted.actions[..],
+        [ClientShellAction::Endpoint { request, .. }]
+            if matches!(
+                &request.method,
+                crate::api::schema::Method::TabFocus(target) if target.tab_id == "tab_2"
             )
     ));
 }

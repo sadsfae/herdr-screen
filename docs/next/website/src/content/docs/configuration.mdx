@@ -163,6 +163,23 @@ next_tab = ["prefix+n", "ctrl+alt+]"]
 
 The special binding `prefix+prefix` runs the action when the prefix key is pressed again while prefix mode is active, matching tmux and GNU screen's last-window toggle. For example, with the prefix set to `ctrl+a`, `last_tab = "prefix+prefix"` makes `ctrl+a` `ctrl+a` focus the previously focused tab. Without a bound action, pressing the prefix twice exits prefix mode and sends the literal prefix key to the pane.
 
+The screen-style window list opens an overlay listing every tab across all workspaces. Mouse or up/down (or `j`/`k`) selects a row, Enter focuses it, Esc closes:
+
+```toml
+[keys]
+window_list = "prefix+\""
+```
+
+`lock` runs `lock_command` to lock the terminal:
+
+```toml
+[keys]
+lock = "prefix+ctrl+x"
+lock_command = "loginctl lock-session"
+```
+
+GNU screen binds lock to `prefix+x`; herdrscreen keeps `prefix+x` for close pane (tmux convention), so lock defaults to `prefix+ctrl+x`, screen's second lock binding. Rebind `close_pane` first if you want `prefix+x` to lock instead.
+
 Optional actions are unset by default. Bind them with `prefix+` for prefix-mode behavior, or use an explicit modified chord when you intentionally want a direct shortcut. For example, tmux-style one-keystroke pane resizing without entering resize mode:
 
 ```toml

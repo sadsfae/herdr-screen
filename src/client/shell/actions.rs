@@ -48,6 +48,24 @@ impl ClientShellState {
                     outcome.repaint = true;
                     return;
                 }
+                if action == crate::input::KeybindAction::WindowList {
+                    self.open_window_list_overlay();
+                    outcome.repaint = true;
+                    return;
+                }
+                if action == crate::input::KeybindAction::Lock {
+                    let command = self.config.local_keys.lock_command.trim().to_owned();
+                    if !command.is_empty() {
+                        let mut process =
+                            crate::platform::detached_custom_command_process(&command);
+                        process
+                            .stdin(std::process::Stdio::null())
+                            .stdout(std::process::Stdio::null())
+                            .stderr(std::process::Stdio::null());
+                        let _ = process.spawn();
+                    }
+                    return;
+                }
                 if action == crate::input::KeybindAction::Help {
                     self.overlay = Some(ClientShellOverlay::Help(ClientHelpOverlay {
                         query: TextEditor::default(),

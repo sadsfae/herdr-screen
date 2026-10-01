@@ -15,6 +15,8 @@ pub(crate) struct OverlayRender {
     pub(crate) navigator_rows: Vec<(Rect, ClientNavigatorTarget)>,
     pub(crate) navigator_scrollbar: Rect,
     pub(crate) navigator_scroll_metrics: Option<crate::pane::ScrollMetrics>,
+    pub(crate) window_list_popup: Rect,
+    pub(crate) window_list_rows: Vec<(Rect, ClientWindowListTarget)>,
     pub(crate) worktree_search: Rect,
     pub(crate) worktree_rows: Vec<(Rect, usize)>,
     pub(crate) help_popup: Rect,
@@ -45,6 +47,7 @@ pub(crate) fn render_client_overlay(
     if !matches!(
         o,
         ClientShellOverlay::Navigator(_)
+            | ClientShellOverlay::WindowList(_)
             | ClientShellOverlay::ContextMenu(_)
             | ClientShellOverlay::GlobalMenu(_)
     ) {
@@ -67,6 +70,9 @@ pub(crate) fn render_client_overlay(
         ClientShellOverlay::Navigator(v) => {
             render_navigator_overlay(b, v, endpoints, active_endpoint_id, p)
         }
+        ClientShellOverlay::WindowList(v) => {
+            render_window_list_overlay(b, v, endpoints, active_endpoint_id, p)
+        }
         ClientShellOverlay::Settings(v) => {
             settings_overlay::render_settings_overlay(b, v, s.integration_updates_available, p)
         }
@@ -81,6 +87,127 @@ pub(crate) fn render_client_overlay(
         }
         ClientShellOverlay::ContextMenu(_) | ClientShellOverlay::GlobalMenu(_) => None,
     }
+}
+
+fn render_window_list_overlay(
+    b: &mut Buffer,
+    w: &ClientWindowListOverlay,
+    endpoints: &[ClientShellEndpoint],
+    active_endpoint_id: &ClientEndpointId,
+    p: &Palette,
+) -> Option<OverlayRender> {
+    let a = b.area;
+    let width = a.width.saturating_sub(4).min(96);
+    let height = a.height.saturating_sub(2).min(42);
+    if width < 4 || height < 9 {
+        return None;
+    }
+    let q = Rect::new(
+        a.x + (a.width - width) / 2,
+        a.y + (a.height - height) / 2,
+        width,
+        height,
+    )
+    .intersection(a);
+    let i = panel(b, q, p.accent, p.panel_bg)?;
+    put_text(
+        b,
+        q.x + 2,
+        q.y,
+        q.width.saturating_sub(4),
+        " Window list ",
+        Style::default().fg(p.accent).bg(p.panel_bg),
+    );
+    put_text(
+        b,
+        i.x,
+        i.y + 1,
+        i.width,
+        &"─".repeat(i.width as usize),
+        Style::default().fg(p.surface1).bg(p.panel_bg),
+    );
+    let body = Rect::new(i.x, i.y + 2, i.width, i.height.saturating_sub(4));
+    let rows =
+        super::aggregate_navigation::window_list_rows(endpoints, active_endpoint_id);
+    let selected =
+        super::aggregate_navigation::window_list_selected_index(&rows, w).unwrap_or(0);
+    let max = rows.len().saturating_sub(body.height as usize);
+    let scroll = w
+        .scroll
+        .max(selected.saturating_sub(body.height.saturating_sub(1) as usize))
+        .min(selected)
+        .min(max);
+    let mut row_hits = Vec::new();
+    if rows.is_empty() {
+        put_text(
+            b,
+            body.x,
+            body.y,
+            body.width,
+            " No tabs",
+            Style::default().fg(p.overlay0).bg(p.panel_bg),
+        );
+    }
+    for (ix, r) in rows
+        .iter()
+        .enumerate()
+        .skip(scroll)
+        .take(body.height as usize)
+    {
+        let rect = Rect::new(body.x, body.y + (ix - scroll) as u16, body.width, 1);
+        row_hits.push((rect, r.target.clone()));
+        let st = if ix == selected {
+            Style::default()
+                .fg(contrast(p))
+                .bg(p.accent)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(p.text).bg(p.panel_bg)
+        };
+        b.set_style(rect, st);
+        let current = if r.current { "◆ " } else { "" };
+        let label = format!("{ix}  {current}{}", r.label);
+        put_text(b, rect.x, rect.y, rect.width, &label, st);
+        if rect.width >= 32 {
+            put_right_text(
+                b,
+                rect,
+                rect.y,
+                &r.workspace,
+                if ix == selected {
+                    st
+                } else {
+                    st.fg(p.overlay0)
+                },
+            );
+        }
+    }
+    let count = format!(
+        "{} {}",
+        rows.len(),
+        if rows.len() == 1 { "tab" } else { "tabs" }
+    );
+    put_right_text(
+        b,
+        i,
+        i.y,
+        &count,
+        Style::default().fg(p.overlay0).bg(p.panel_bg),
+    );
+    put_text(
+        b,
+        i.x,
+        i.bottom() - 2,
+        i.width,
+        " enter focus / esc close ",
+        Style::default().fg(p.subtext0).bg(p.panel_bg),
+    );
+    Some(OverlayRender {
+        area: q,
+        window_list_popup: i,
+        window_list_rows: row_hits,
+        ..OverlayRender::default()
+    })
 }
 
 pub(crate) fn render_global_menu(
