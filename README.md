@@ -18,7 +18,7 @@ agents. It keeps Herdr's engine and adds:
   `keys.lock_command` (default `loginctl lock-session`).
 - Screen-style multi-attach: every connected client keeps its own viewed tab, so one
   client switching tabs never moves another (tmux moves everyone). Socket CLI focus
-  (`herdr tab focus`) still moves the whole session.
+  (`herdrscreen tab focus`) still moves the whole session.
 - No self-update: `herdrscreen update` is stubbed and version/manifest checks are off. Install
   updates from the [releases page](https://github.com/sadsfae/herdrscreen/releases): RPMs for
   EL8/EL9/EL10 and Fedora, a deb for Debian/Ubuntu, an AUR package, a Slackware txz, and a
@@ -40,7 +40,6 @@ Licensing and attribution: Apache-2.0. See [LICENSE](LICENSE), [NOTICE](NOTICE),
   - [FreeBSD](#freebsd)
 - [About](#about)
 - [Upstream herdr Docs](#upstream-herdr-docs)
-- [Thanks](#thanks)
 
 ---
 
@@ -59,7 +58,7 @@ when a release is cut.
 
 ### RPM
 
-<img src="assets/redhat.png" alt="RPM" width="22" />
+<img src="assets/redhat.svg" alt="RPM" width="28" />
 
 Fedora:
 
@@ -75,7 +74,7 @@ sudo dnf install ./herdrscreen-0.2.0-1.el9.x86_64.rpm
 
 ### Deb
 
-<img src="assets/debian.png" alt="Deb" width="22" />
+<img src="assets/debian.svg" alt="Deb" width="28" />
 
 Debian / Ubuntu:
 
@@ -85,7 +84,7 @@ sudo apt install ./herdrscreen_0.2.0_amd64.deb
 
 ### AUR
 
-<img src="assets/arch.png" alt="AUR" width="22" />
+<img src="assets/arch.svg" alt="AUR" width="28" />
 
 Arch Linux (the PKGBUILD ships in-repo; build it until it lands on the AUR):
 
@@ -97,7 +96,7 @@ makepkg -si
 
 ### Slackware
 
-<img src="assets/slackware.png" alt="Slackware" width="22" />
+<img src="assets/slackware.svg" alt="Slackware" width="28" />
 
 ```bash
 installpkg herdrscreen-0.2.0-x86_64-1.txz
@@ -105,7 +104,7 @@ installpkg herdrscreen-0.2.0-x86_64-1.txz
 
 ### FreeBSD
 
-<img src="assets/freebsd.png" alt="FreeBSD" width="22" />
+<img src="assets/freebsd.svg" alt="FreeBSD" width="28" />
 
 ```bash
 pkg add ./herdrscreen-0.2.0.pkg
@@ -114,10 +113,10 @@ pkg add ./herdrscreen-0.2.0.pkg
 then start it where the work lives:
 
 ```bash
-herdr
+herdrscreen
 ```
 
-run your agents, split panes, walk away. `ctrl+a q` detaches, `herdr` reattaches. [quick start →](https://herdr.dev/docs/quick-start/)
+run your agents, split panes, walk away. `ctrl+a q` detaches, `herdrscreen` reattaches. [quick start →](https://herdr.dev/docs/quick-start/)
 
 ## About
 
@@ -135,9 +134,3 @@ run your agents, split panes, walk away. `ctrl+a q` detaches, `herdr` reattaches
 ## Upstream herdr Docs
 
 everything lives at [herdr.dev/docs](https://herdr.dev/docs/): [quick start](https://herdr.dev/docs/quick-start/) · [concepts](https://herdr.dev/docs/concepts/) · [supported agents](https://herdr.dev/docs/agents/) · [keyboard](https://herdr.dev/docs/keyboard/) · [configuration](https://herdr.dev/docs/configuration/) · [session state](https://herdr.dev/docs/session-state/) · [connecting machines](https://herdr.dev/docs/connecting-machines/) · [remote](https://herdr.dev/docs/persistence-remote/) · [integrations](https://herdr.dev/docs/integrations/) · [plugins](https://herdr.dev/docs/plugins/) · [socket api](https://herdr.dev/docs/socket-api/)
-
-## Thanks
-
-every past sponsor and backer is listed in [SPONSORS.md](./SPONSORS.md) — thank you 🐑
-
-enterprise / partnership: hey@herdr.dev
