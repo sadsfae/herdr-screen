@@ -1,3 +1,4 @@
+use super::aggregate_navigation::ClientWindowListEntry;
 use super::*;
 
 mod settings_overlay;
@@ -110,14 +111,31 @@ fn render_window_list_overlay(
     )
     .intersection(a);
     let i = panel(b, q, p.accent, p.panel_bg)?;
+    let search = if w.search_focused {
+        " / ".to_owned()
+    } else if w.query.is_empty() {
+        " Window list ".to_owned()
+    } else {
+        format!(" / {}", w.query.as_str())
+    };
     put_text(
         b,
         q.x + 2,
         q.y,
         q.width.saturating_sub(4),
-        " Window list ",
-        Style::default().fg(p.accent).bg(p.panel_bg),
+        &search,
+        Style::default()
+            .fg(if w.search_focused { p.text } else { p.accent })
+            .bg(p.panel_bg),
     );
+    if w.search_focused {
+        text_editor::render(
+            b,
+            Rect::new(q.x + 5, q.y, q.width.saturating_sub(7), 1),
+            &w.query,
+            Style::default().fg(p.text).bg(p.panel_bg),
+        );
+    }
     put_text(
         b,
         i.x,
@@ -127,16 +145,18 @@ fn render_window_list_overlay(
         Style::default().fg(p.surface1).bg(p.panel_bg),
     );
     let body = Rect::new(i.x, i.y + 2, i.width, i.height.saturating_sub(4));
-    let rows = super::aggregate_navigation::window_list_rows(endpoints, active_endpoint_id);
-    let selected = super::aggregate_navigation::window_list_selected_index(&rows, w).unwrap_or(0);
-    let max = rows.len().saturating_sub(body.height as usize);
+    let entries =
+        super::aggregate_navigation::window_list_entries(endpoints, active_endpoint_id, w);
+    let selected =
+        super::aggregate_navigation::window_list_selected_index(&entries, w).unwrap_or(0);
+    let max = entries.len().saturating_sub(body.height as usize);
     let scroll = w
         .scroll
         .max(selected.saturating_sub(body.height.saturating_sub(1) as usize))
         .min(selected)
         .min(max);
     let mut row_hits = Vec::new();
-    if rows.is_empty() {
+    if entries.is_empty() {
         put_text(
             b,
             body.x,
@@ -146,14 +166,15 @@ fn render_window_list_overlay(
             Style::default().fg(p.overlay0).bg(p.panel_bg),
         );
     }
-    for (ix, r) in rows
+    let mut tab_number = 0usize;
+    for (ix, entry) in entries
         .iter()
         .enumerate()
         .skip(scroll)
         .take(body.height as usize)
     {
         let rect = Rect::new(body.x, body.y + (ix - scroll) as u16, body.width, 1);
-        row_hits.push((rect, r.target.clone()));
+        row_hits.push((rect, entry.target()));
         let st = if ix == selected {
             Style::default()
                 .fg(contrast(p))
@@ -163,27 +184,35 @@ fn render_window_list_overlay(
             Style::default().fg(p.text).bg(p.panel_bg)
         };
         b.set_style(rect, st);
-        let current = if r.current { "◆ " } else { "" };
-        let label = format!("{ix}  {current}{}", r.label);
-        put_text(b, rect.x, rect.y, rect.width, &label, st);
-        if rect.width >= 32 {
-            put_right_text(
-                b,
-                rect,
-                rect.y,
-                &r.workspace,
-                if ix == selected {
-                    st
-                } else {
-                    st.fg(p.overlay0)
-                },
-            );
+        match entry {
+            ClientWindowListEntry::Workspace {
+                label, expanded, ..
+            } => {
+                let arrow = if *expanded { "▼" } else { "▶" };
+                put_text(
+                    b,
+                    rect.x,
+                    rect.y,
+                    rect.width,
+                    &format!("{arrow} {label}"),
+                    st,
+                );
+            }
+            ClientWindowListEntry::Tab(row) => {
+                let current = if row.current { "◆ " } else { "" };
+                let label = format!("{tab_number}  {current}{}", row.label);
+                put_text(b, rect.x, rect.y, rect.width, &label, st);
+                tab_number += 1;
+            }
         }
     }
+    let tab_count = entries
+        .iter()
+        .filter(|entry| matches!(entry, ClientWindowListEntry::Tab(_)))
+        .count();
     let count = format!(
-        "{} {}",
-        rows.len(),
-        if rows.len() == 1 { "tab" } else { "tabs" }
+        "{tab_count} {}",
+        if tab_count == 1 { "tab" } else { "tabs" }
     );
     put_right_text(
         b,
@@ -197,7 +226,7 @@ fn render_window_list_overlay(
         i.x,
         i.bottom() - 2,
         i.width,
-        " enter focus / esc close ",
+        " enter focus · / search · esc close ",
         Style::default().fg(p.subtext0).bg(p.panel_bg),
     );
     Some(OverlayRender {

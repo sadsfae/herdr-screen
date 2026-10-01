@@ -373,14 +373,18 @@ pub(super) struct ClientNavigatorOverlay {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct ClientWindowListTarget {
-    pub(super) tab_id: String,
+pub(super) enum ClientWindowListTarget {
+    Tab { tab_id: String },
+    Workspace { workspace_id: String },
 }
 
 #[derive(Debug)]
 pub(super) struct ClientWindowListOverlay {
     pub(super) selected: Option<ClientWindowListTarget>,
     pub(super) scroll: usize,
+    pub(super) query: TextEditor,
+    pub(super) search_focused: bool,
+    pub(super) collapsed: Vec<String>,
 }
 
 #[derive(Debug)]

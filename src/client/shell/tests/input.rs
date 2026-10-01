@@ -1,5 +1,12 @@
 use super::*;
 
+fn window_list_tab_id(target: &ClientWindowListTarget) -> &str {
+    match target {
+        ClientWindowListTarget::Tab { tab_id } => tab_id.as_str(),
+        ClientWindowListTarget::Workspace { .. } => "",
+    }
+}
+
 #[test]
 fn host_appearance_prefers_explicit_reports_over_background_inference() {
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
@@ -180,6 +187,9 @@ fn window_list_overlay_renders_and_highlights_current_tab() {
     state.overlay = Some(ClientShellOverlay::WindowList(ClientWindowListOverlay {
         selected: None,
         scroll: 0,
+        query: TextEditor::default(),
+        search_focused: false,
+        collapsed: Vec::new(),
     }));
     let frame = state.compose(106, 20).expect("window list frame");
     let text = frame
@@ -785,7 +795,7 @@ fn window_list_overlay_selects_and_focuses_tabs() {
     assert!(matches!(
         &state.overlay,
         Some(ClientShellOverlay::WindowList(overlay))
-            if overlay.selected.as_ref().map(|target| target.tab_id.as_str()) == Some("tab_1")
+            if overlay.selected.as_ref().map(window_list_tab_id) == Some("tab_1")
     ));
 
     let _ = state.handle_raw_events(vec![RawInputEvent::Key(crate::input::TerminalKey::new(
@@ -795,7 +805,7 @@ fn window_list_overlay_selects_and_focuses_tabs() {
     assert!(matches!(
         &state.overlay,
         Some(ClientShellOverlay::WindowList(overlay))
-            if overlay.selected.as_ref().map(|target| target.tab_id.as_str()) == Some("tab_2")
+            if overlay.selected.as_ref().map(window_list_tab_id) == Some("tab_2")
     ));
 
     let accepted = state.handle_raw_events(vec![RawInputEvent::Key(

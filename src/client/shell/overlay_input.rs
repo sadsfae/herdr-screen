@@ -211,15 +211,24 @@ impl ClientShellState {
         let mut overlay = ClientWindowListOverlay {
             selected: None,
             scroll: 0,
+            query: TextEditor::default(),
+            search_focused: false,
+            collapsed: Vec::new(),
         };
-        let rows = super::aggregate_navigation::window_list_rows(
+        let entries = super::aggregate_navigation::window_list_entries(
             &self.endpoints,
             &self.active_endpoint_id,
+            &overlay,
         );
-        overlay.selected = rows
+        overlay.selected = entries
             .iter()
-            .find(|row| row.current)
-            .map(|row| row.target.clone());
+            .find(|entry| {
+                matches!(
+                    entry,
+                    super::aggregate_navigation::ClientWindowListEntry::Tab(row) if row.current
+                )
+            })
+            .map(|entry| entry.target());
         self.overlay = Some(ClientShellOverlay::WindowList(overlay));
     }
 
@@ -227,41 +236,57 @@ impl ClientShellState {
         let Some(ClientShellOverlay::WindowList(overlay)) = self.overlay.as_mut() else {
             return;
         };
-        let rows = super::aggregate_navigation::window_list_rows(
+        let entries = super::aggregate_navigation::window_list_entries(
             &self.endpoints,
             &self.active_endpoint_id,
+            overlay,
         );
-        if rows.is_empty() {
+        if entries.is_empty() {
             overlay.selected = None;
             return;
         }
         let selected =
-            super::aggregate_navigation::window_list_selected_index(&rows, overlay).unwrap_or(0);
+            super::aggregate_navigation::window_list_selected_index(&entries, overlay).unwrap_or(0);
         let next =
-            (selected as isize + delta).clamp(0, rows.len().saturating_sub(1) as isize) as usize;
-        overlay.selected = Some(rows[next].target.clone());
+            (selected as isize + delta).clamp(0, entries.len().saturating_sub(1) as isize) as usize;
+        overlay.selected = Some(entries[next].target().clone());
     }
 
     pub(super) fn accept_window_list_selection(&mut self, outcome: &mut ClientShellInput) {
-        let target = self.overlay.as_ref().and_then(|overlay| match overlay {
+        let action = self.overlay.as_ref().and_then(|overlay| match overlay {
             ClientShellOverlay::WindowList(overlay) => {
-                let rows = super::aggregate_navigation::window_list_rows(
+                let entries = super::aggregate_navigation::window_list_entries(
                     &self.endpoints,
                     &self.active_endpoint_id,
+                    overlay,
                 );
-                super::aggregate_navigation::window_list_selected_index(&rows, overlay)
-                    .map(|index| rows[index].target.tab_id.clone())
+                super::aggregate_navigation::window_list_selected_index(&entries, overlay)
+                    .map(|index| entries[index].target().clone())
             }
             _ => None,
         });
-        self.overlay = None;
-        let Some(tab_id) = target else {
-            return;
-        };
-        self.push_endpoint_method(
-            crate::api::schema::Method::TabFocus(crate::api::schema::TabTarget { tab_id }),
-            outcome,
-        );
+        match action {
+            Some(ClientWindowListTarget::Tab { tab_id }) => {
+                self.overlay = None;
+                self.push_endpoint_method(
+                    crate::api::schema::Method::TabFocus(crate::api::schema::TabTarget { tab_id }),
+                    outcome,
+                );
+            }
+            Some(ClientWindowListTarget::Workspace { workspace_id }) => {
+                if let Some(ClientShellOverlay::WindowList(overlay)) = self.overlay.as_mut() {
+                    if let Some(position) =
+                        overlay.collapsed.iter().position(|id| *id == workspace_id)
+                    {
+                        overlay.collapsed.remove(position);
+                    } else {
+                        overlay.collapsed.push(workspace_id);
+                    }
+                }
+                outcome.repaint = true;
+            }
+            None => {}
+        }
     }
 
     pub(super) fn move_navigator_selection(&mut self, delta: isize) {
@@ -687,13 +712,66 @@ impl ClientShellState {
         }
         if matches!(self.overlay, Some(ClientShellOverlay::WindowList(_))) {
             let (code, modifiers) = crate::config::normalize_key_combo((key.code, key.modifiers));
+            let search_focused = matches!(
+                self.overlay,
+                Some(ClientShellOverlay::WindowList(ClientWindowListOverlay {
+                    search_focused: true,
+                    ..
+                }))
+            );
             if code == KeyCode::Esc {
-                self.overlay = None;
+                if search_focused {
+                    if let Some(ClientShellOverlay::WindowList(overlay)) = self.overlay.as_mut() {
+                        overlay.search_focused = false;
+                    }
+                } else {
+                    self.overlay = None;
+                }
                 outcome.repaint = true;
                 return;
             }
             if code == KeyCode::Enter {
                 self.accept_window_list_selection(outcome);
+                outcome.repaint = true;
+                return;
+            }
+            if search_focused {
+                if let Some(ClientShellOverlay::WindowList(overlay)) = self.overlay.as_mut() {
+                    if let Some(content_changed) = overlay.query.handle_key(key) {
+                        if content_changed {
+                            overlay.selected = None;
+                        }
+                        outcome.repaint = true;
+                        return;
+                    }
+                }
+                if matches!(code, KeyCode::Down | KeyCode::Char('j')) && modifiers.is_empty() {
+                    self.move_window_list_selection(1);
+                    outcome.repaint = true;
+                    return;
+                }
+                if matches!(code, KeyCode::Up | KeyCode::Char('k')) && modifiers.is_empty() {
+                    self.move_window_list_selection(-1);
+                    outcome.repaint = true;
+                    return;
+                }
+                return;
+            }
+            if code == KeyCode::Char('/') && modifiers.is_empty() {
+                if let Some(ClientShellOverlay::WindowList(overlay)) = self.overlay.as_mut() {
+                    overlay.search_focused = true;
+                    overlay.selected = None;
+                }
+                outcome.repaint = true;
+                return;
+            }
+            if code == KeyCode::Backspace && modifiers.is_empty() {
+                if let Some(ClientShellOverlay::WindowList(overlay)) = self.overlay.as_mut() {
+                    if !overlay.query.is_empty() {
+                        overlay.query.clear();
+                        overlay.selected = None;
+                    }
+                }
                 outcome.repaint = true;
                 return;
             }

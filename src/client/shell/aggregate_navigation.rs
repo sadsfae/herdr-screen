@@ -487,17 +487,40 @@ pub(super) fn selected_navigator_target(
 #[derive(Debug)]
 pub(super) struct ClientWindowListRow {
     pub(super) label: String,
-    pub(super) workspace: String,
     pub(super) current: bool,
     pub(super) target: ClientWindowListTarget,
 }
 
-/// Screen-style window list: one row per tab across every workspace of the
-/// active endpoint, in workspace order.
-pub(super) fn window_list_rows(
+#[derive(Debug)]
+pub(super) enum ClientWindowListEntry {
+    Workspace {
+        workspace_id: String,
+        label: String,
+        expanded: bool,
+    },
+    Tab(ClientWindowListRow),
+}
+
+impl ClientWindowListEntry {
+    pub(super) fn target(&self) -> ClientWindowListTarget {
+        match self {
+            ClientWindowListEntry::Workspace { workspace_id, .. } => {
+                ClientWindowListTarget::Workspace {
+                    workspace_id: workspace_id.clone(),
+                }
+            }
+            ClientWindowListEntry::Tab(row) => row.target.clone(),
+        }
+    }
+}
+
+/// Screen-style window list: workspace headers with collapsible child tabs.
+/// A non-empty query keeps only matching tabs and their workspaces.
+pub(super) fn window_list_entries(
     endpoints: &[ClientShellEndpoint],
     active_endpoint_id: &ClientEndpointId,
-) -> Vec<ClientWindowListRow> {
+    overlay: &ClientWindowListOverlay,
+) -> Vec<ClientWindowListEntry> {
     let Some(endpoint) = endpoints
         .iter()
         .find(|endpoint| endpoint.endpoint_id == *active_endpoint_id)
@@ -508,40 +531,202 @@ pub(super) fn window_list_rows(
     let Some(snapshot) = endpoint.snapshot.as_deref() else {
         return Vec::new();
     };
-    let mut rows = Vec::new();
-    for workspace in &snapshot.workspaces {
-        for tab in snapshot
-            .tabs
+    window_list_entries_from(&snapshot.workspaces, &snapshot.tabs, overlay)
+}
+
+fn window_list_entries_from(
+    workspaces: &[ClientShellWorkspace],
+    tabs: &[ClientShellTab],
+    overlay: &ClientWindowListOverlay,
+) -> Vec<ClientWindowListEntry> {
+    let query = overlay.query.trim().to_lowercase();
+    let words = query.split_whitespace().collect::<Vec<_>>();
+    let search_active = !words.is_empty();
+    let text = |value: &str| {
+        if words.is_empty() {
+            return true;
+        }
+        let value = value.to_lowercase();
+        words.iter().all(|word| value.contains(word))
+    };
+    let mut entries = Vec::new();
+    for workspace in workspaces {
+        let workspace_tabs = tabs
             .iter()
-            .filter(|tab| tab.workspace_id == workspace.workspace_id)
-        {
-            let label = if tab.custom_label || tab.label.parse::<usize>().is_err() {
-                tab.label.as_str()
-            } else {
-                workspace.label.as_str()
-            };
-            rows.push(ClientWindowListRow {
-                label: label.to_owned(),
-                workspace: workspace.label.clone(),
-                current: tab.focused,
-                target: ClientWindowListTarget {
-                    tab_id: tab.tab_id.clone(),
-                },
-            });
+            .filter(|tab| tab.workspace_id == workspace.workspace_id);
+        let workspace_tabs: Vec<&ClientShellTab> = if search_active {
+            workspace_tabs.filter(|tab| text(&tab.label)).collect()
+        } else {
+            workspace_tabs.collect()
+        };
+        if search_active && workspace_tabs.is_empty() {
+            continue;
+        }
+        let expanded = !overlay.collapsed.contains(&workspace.workspace_id);
+        entries.push(ClientWindowListEntry::Workspace {
+            workspace_id: workspace.workspace_id.clone(),
+            label: workspace.label.clone(),
+            expanded,
+        });
+        if expanded || search_active {
+            for tab in workspace_tabs {
+                let label = if tab.custom_label || tab.label.parse::<usize>().is_err() {
+                    tab.label.as_str()
+                } else {
+                    workspace.label.as_str()
+                };
+                entries.push(ClientWindowListEntry::Tab(ClientWindowListRow {
+                    label: label.to_owned(),
+                    current: tab.focused,
+                    target: ClientWindowListTarget::Tab {
+                        tab_id: tab.tab_id.clone(),
+                    },
+                }));
+            }
         }
     }
-    rows
+    entries
 }
 
 pub(super) fn window_list_selected_index(
-    rows: &[ClientWindowListRow],
+    entries: &[ClientWindowListEntry],
     overlay: &ClientWindowListOverlay,
 ) -> Option<usize> {
     match overlay.selected.as_ref() {
-        Some(target) => rows.iter().position(|row| row.target == *target),
-        None => rows
+        Some(target) => entries
             .iter()
-            .position(|row| row.current)
-            .or_else(|| (!rows.is_empty()).then_some(0)),
+            .position(|entry| entry.target() == target.clone()),
+        None => entries
+            .iter()
+            .position(|entry| {
+                matches!(
+                    entry,
+                    ClientWindowListEntry::Tab(ClientWindowListRow { current: true, .. })
+                )
+            })
+            .or_else(|| (!entries.is_empty()).then_some(0)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::schema::AgentStatus;
+    use crate::client::shell::state::{ClientWindowListOverlay, ClientWindowListTarget};
+    use crate::client::shell::text_editor::TextEditor;
+    use crate::protocol::{ClientShellTab, ClientShellWorkspace};
+
+    fn workspace(id: &str, label: &str) -> ClientShellWorkspace {
+        ClientShellWorkspace {
+            workspace_id: id.to_owned(),
+            active_tab_id: String::new(),
+            new_workspace_cwd: String::new(),
+            number: 0,
+            label: label.to_owned(),
+            custom_label: false,
+            branch: None,
+            git_ahead_behind: None,
+            tokens: Vec::new(),
+            worktree: None,
+            focused: false,
+            agent_status: AgentStatus::Unknown,
+        }
+    }
+
+    fn tab(workspace_id: &str, tab_id: &str, label: &str, focused: bool) -> ClientShellTab {
+        ClientShellTab {
+            tab_id: tab_id.to_owned(),
+            workspace_id: workspace_id.to_owned(),
+            number: 0,
+            label: label.to_owned(),
+            custom_label: true,
+            zoomed: false,
+            focused,
+            agent_status: AgentStatus::Unknown,
+        }
+    }
+
+    fn overlay(query: &str, collapsed: &[&str]) -> ClientWindowListOverlay {
+        ClientWindowListOverlay {
+            selected: None,
+            scroll: 0,
+            query: TextEditor::new(query, false),
+            search_focused: false,
+            collapsed: collapsed.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+
+    #[test]
+    fn entries_group_tabs_under_workspace_headers() {
+        let workspaces = [workspace("ws1", "QIIP/CLAUDE")];
+        let tabs = vec![
+            tab("ws1", "t1", "ONE", true),
+            tab("ws1", "t2", "TWO", false),
+        ];
+        let entries = window_list_entries_from(&workspaces, &tabs, &overlay("", &[]));
+        assert_eq!(entries.len(), 3);
+        assert!(matches!(
+            &entries[0],
+            ClientWindowListEntry::Workspace { label, expanded: true, .. } if label == "QIIP/CLAUDE"
+        ));
+        assert_eq!(
+            entries[1].target(),
+            ClientWindowListTarget::Tab {
+                tab_id: "t1".to_owned()
+            }
+        );
+        assert_eq!(
+            entries[2].target(),
+            ClientWindowListTarget::Tab {
+                tab_id: "t2".to_owned()
+            }
+        );
+    }
+
+    #[test]
+    fn collapsed_workspace_hides_child_tabs() {
+        let workspaces = [workspace("ws1", "QIIP/CLAUDE")];
+        let tabs = vec![tab("ws1", "t1", "ONE", true)];
+        let entries = window_list_entries_from(&workspaces, &tabs, &overlay("", &["ws1"]));
+        assert_eq!(entries.len(), 1);
+        assert!(matches!(
+            &entries[0],
+            ClientWindowListEntry::Workspace {
+                expanded: false,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn search_filters_tabs_and_keeps_matching_workspace() {
+        let workspaces = [workspace("ws1", "QIIP/CLAUDE"), workspace("ws2", "LOCAL")];
+        let tabs = vec![
+            tab("ws1", "t1", "CLAUDE", true),
+            tab("ws1", "t2", "SHELL1", false),
+            tab("ws2", "t3", "SHELL2", false),
+        ];
+        let entries = window_list_entries_from(&workspaces, &tabs, &overlay("shell", &[]));
+        assert_eq!(entries.len(), 4);
+        assert!(matches!(
+            &entries[0],
+            ClientWindowListEntry::Workspace { label, .. } if label == "QIIP/CLAUDE"
+        ));
+        assert_eq!(
+            entries[1].target(),
+            ClientWindowListTarget::Tab {
+                tab_id: "t2".to_owned()
+            }
+        );
+        assert!(matches!(
+            &entries[2],
+            ClientWindowListEntry::Workspace { label, .. } if label == "LOCAL"
+        ));
+        assert_eq!(
+            entries[3].target(),
+            ClientWindowListTarget::Tab {
+                tab_id: "t3".to_owned()
+            }
+        );
     }
 }
