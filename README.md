@@ -18,17 +18,22 @@ agents. It keeps Herdr's engine and adds:
 ## Features
 
 - GNU screen keybindings by default: prefix is `ctrl+a` (set `prefix = "ctrl+b"` for the
-  tmux style), and `ctrl+a ctrl+a` toggles back to the last focused tab
-  (`keys.last_tab = "prefix+prefix"`).
-- Screen-style overview and lock: `ctrl+a "` lists every tab across workspaces (mouse or
-  arrows select, enter focuses), and `ctrl+a ctrl+x` locks the terminal via
-  `keys.lock_command` (default `loginctl lock-session`).
+  tmux style)
+  - `ctrl+a ctrl+a` toggles back to the last focused tab (`keys.last_tab = "prefix+prefix"`)
+  - `ctrl+a ctrl+x` locks the terminal via `keys.lock_command` (default
+    `loginctl lock-session`)
+- Screen-style window list (`ctrl+a "`)
+  - every tab across every workspace, grouped under its workspace header instead of
+    repeating the workspace on each row
+  - collapsible headers: `▼` expanded, `▶` collapsed, enter on a header reveals or
+    hides its child tabs
+  - `/` filters tab titles across workspaces (esc leaves search first)
 - Screen-style multi-attach: every connected client keeps its own viewed tab, so one
   client switching tabs never moves another (tmux moves everyone). Socket CLI focus
   (`herdrscreen tab focus`) still moves the whole session.
 - No self-update: `herdrscreen update` is stubbed and version/manifest checks are off. Install
   updates from the [releases page](https://github.com/sadsfae/herdrscreen/releases): RPMs for
-  EL8/EL9/EL10 and Fedora, a deb for Debian/Ubuntu, an AUR package, a Slackware txz, and a
+  EL8/EL9/EL10 and Fedora 42-44, a deb for Debian/Ubuntu, an AUR package, a Slackware txz, and a
   FreeBSD pkg.
 - Config and session state stay in Herdr's usual paths (`~/.config/herdr`,
   `~/.local/state/herdr`), so herdrscreen is a drop-in replacement for existing Herdr setups.
