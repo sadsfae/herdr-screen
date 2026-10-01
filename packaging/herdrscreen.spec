@@ -37,10 +37,10 @@ install -Dm644 %{SOURCE4} %{buildroot}%{_docdir}/herdrscreen/CHANGELOG.md
 
 %files
 %{_bindir}/herdrscreen
-%license LICENSE
-%license NOTICE
-%doc README.md
-%doc CHANGELOG.md
+%license %{_licensedir}/herdrscreen/LICENSE
+%license %{_licensedir}/herdrscreen/NOTICE
+%doc %{_docdir}/herdrscreen/README.md
+%doc %{_docdir}/herdrscreen/CHANGELOG.md
 
 %changelog
 * Thu Oct 01 2026 sadsfae <sadsfae@users.noreply.github.com> - 0.1.0-1
