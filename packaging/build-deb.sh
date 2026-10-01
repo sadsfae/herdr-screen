@@ -38,4 +38,5 @@ EOF
 cd "$ROOT"
 printf '2.0\n' > debian-binary
 ar r "$OUT" debian-binary control.tar.gz data.tar.gz 2>/dev/null || ar rcs "$OUT" debian-binary control.tar.gz data.tar.gz
+rm -rf "$ROOT"
 echo "built $OUT"

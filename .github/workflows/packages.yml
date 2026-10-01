@@ -108,7 +108,7 @@ jobs:
           gh release view nightly --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
             gh release create nightly --repo "$GITHUB_REPOSITORY" --prerelease \
               --title "nightly" --notes "Built from $GITHUB_SHA"
-          for asset in $(gh release view nightly --repo "$GITHUB_REPOSITORY" --json assets --jq '.[].name'); do
+          for asset in $(gh release view nightly --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name'); do
             gh release delete-asset nightly "$asset" --repo "$GITHUB_REPOSITORY" --yes
           done
           gh release upload nightly dist/* --repo "$GITHUB_REPOSITORY" --clobber
