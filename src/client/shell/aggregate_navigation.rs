@@ -515,9 +515,11 @@ pub(super) fn window_list_rows(
             .iter()
             .filter(|tab| tab.workspace_id == workspace.workspace_id)
         {
-            let label = (tab.custom_label || tab.label.parse::<usize>().is_err())
-                .then_some(tab.label.as_str())
-                .unwrap_or(workspace.label.as_str());
+            let label = if tab.custom_label || tab.label.parse::<usize>().is_err() {
+                tab.label.as_str()
+            } else {
+                workspace.label.as_str()
+            };
             rows.push(ClientWindowListRow {
                 label: label.to_owned(),
                 workspace: workspace.label.clone(),
