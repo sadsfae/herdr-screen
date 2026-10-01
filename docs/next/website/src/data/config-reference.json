@@ -536,6 +536,12 @@
           "description": "Open the workspace navigation surface."
         },
         {
+          "key": "keys.window_list",
+          "type": "keybinding",
+          "default": "\"prefix+double_quote\"",
+          "description": "Open the screen-style window list tab overview."
+        },
+        {
           "key": "keys.goto",
           "type": "keybinding",
           "default": "\"prefix+g\"",
@@ -804,6 +810,18 @@
           "type": "keybinding",
           "default": "\"prefix+z\"",
           "description": "Toggle zoom for the focused pane. The legacy key name `fullscreen` is accepted as an alias."
+        },
+        {
+          "key": "keys.lock_command",
+          "type": "string",
+          "default": "\"loginctl lock-session\"",
+          "description": "Command run by the lock binding."
+        },
+        {
+          "key": "keys.lock",
+          "type": "keybinding",
+          "default": "\"prefix+ctrl+x\"",
+          "description": "Lock the terminal, like GNU screen's lockscreen."
         },
         {
           "key": "keys.resize_mode",
