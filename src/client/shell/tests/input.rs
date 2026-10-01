@@ -185,7 +185,11 @@ fn window_list_overlay_renders_and_highlights_current_tab() {
     let text = frame
         .cells
         .chunks(usize::from(frame.width))
-        .map(|row| row.iter().map(|cell| cell.symbol.as_str()).collect::<String>())
+        .map(|row| {
+            row.iter()
+                .map(|cell| cell.symbol.as_str())
+                .collect::<String>()
+        })
         .collect::<Vec<_>>()
         .join("\n");
     assert!(text.contains("Window list"));
@@ -727,9 +731,10 @@ fn double_prefix_focuses_last_tab_when_bound() {
     second.panes[1].focused = true;
     state.set_snapshot(Box::new(second));
 
-    let first = state.handle_raw_events(vec![RawInputEvent::Key(
-        crate::input::TerminalKey::new(KeyCode::Char('a'), KeyModifiers::CONTROL),
-    )]);
+    let first = state.handle_raw_events(vec![RawInputEvent::Key(crate::input::TerminalKey::new(
+        KeyCode::Char('a'),
+        KeyModifiers::CONTROL,
+    ))]);
     assert!(first.actions.is_empty());
     assert_eq!(state.mode, ClientShellMode::Prefix);
 
@@ -766,14 +771,16 @@ fn window_list_overlay_selects_and_focuses_tabs() {
     initial.panes.push(pane2);
     state.set_snapshot(Box::new(initial));
 
-    let _ = state.handle_raw_events(vec![RawInputEvent::Key(
-        crate::input::TerminalKey::new(KeyCode::Char('a'), KeyModifiers::CONTROL),
-    )]);
+    let _ = state.handle_raw_events(vec![RawInputEvent::Key(crate::input::TerminalKey::new(
+        KeyCode::Char('a'),
+        KeyModifiers::CONTROL,
+    ))]);
     assert_eq!(state.mode, ClientShellMode::Prefix);
 
-    let opened = state.handle_raw_events(vec![RawInputEvent::Key(
-        crate::input::TerminalKey::new(KeyCode::Char('"'), KeyModifiers::SHIFT),
-    )]);
+    let opened = state.handle_raw_events(vec![RawInputEvent::Key(crate::input::TerminalKey::new(
+        KeyCode::Char('"'),
+        KeyModifiers::SHIFT,
+    ))]);
     assert!(opened.repaint);
     assert!(matches!(
         &state.overlay,
@@ -781,9 +788,10 @@ fn window_list_overlay_selects_and_focuses_tabs() {
             if overlay.selected.as_ref().map(|target| target.tab_id.as_str()) == Some("tab_1")
     ));
 
-    let _ = state.handle_raw_events(vec![RawInputEvent::Key(
-        crate::input::TerminalKey::new(KeyCode::Down, KeyModifiers::empty()),
-    )]);
+    let _ = state.handle_raw_events(vec![RawInputEvent::Key(crate::input::TerminalKey::new(
+        KeyCode::Down,
+        KeyModifiers::empty(),
+    ))]);
     assert!(matches!(
         &state.overlay,
         Some(ClientShellOverlay::WindowList(overlay))
@@ -812,9 +820,10 @@ fn double_prefix_without_binding_keeps_passing_literal_prefix_to_pane() {
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
     state.set_snapshot(Box::new(snapshot()));
 
-    let _ = state.handle_raw_events(vec![RawInputEvent::Key(
-        crate::input::TerminalKey::new(KeyCode::Char('a'), KeyModifiers::CONTROL),
-    )]);
+    let _ = state.handle_raw_events(vec![RawInputEvent::Key(crate::input::TerminalKey::new(
+        KeyCode::Char('a'),
+        KeyModifiers::CONTROL,
+    ))]);
     assert_eq!(state.mode, ClientShellMode::Prefix);
 
     let second_key = state.handle_raw_events(vec![RawInputEvent::Key(

@@ -612,8 +612,14 @@ fn main() -> io::Result<()> {
                 "herdrscreen status [server|client]",
                 "Show local client and running server status",
             ),
-            ("herdrscreen update", "Download and install the latest version"),
-            ("herdrscreen completion zsh", "Generate shell completions for zsh"),
+            (
+                "herdrscreen update",
+                "Download and install the latest version",
+            ),
+            (
+                "herdrscreen completion zsh",
+                "Generate shell completions for zsh",
+            ),
             (
                 "herdrscreen server stop",
                 "Stop the running server via the API socket",
@@ -634,7 +640,10 @@ fn main() -> io::Result<()> {
                 "herdrscreen channel <subcommand>",
                 "Manage the stable or preview update channel",
             ),
-            ("herdrscreen machine <subcommand>", "Manage saved SSH machines"),
+            (
+                "herdrscreen machine <subcommand>",
+                "Manage saved SSH machines",
+            ),
             (
                 "herdrscreen api <subcommand>",
                 "Inspect socket API metadata and live runtime state",
@@ -647,7 +656,10 @@ fn main() -> io::Result<()> {
                 "herdrscreen worktree <subcommand>",
                 "Git worktree helpers over the socket API",
             ),
-            ("herdrscreen tab <subcommand>", "Tab helpers over the socket API"),
+            (
+                "herdrscreen tab <subcommand>",
+                "Tab helpers over the socket API",
+            ),
             (
                 "herdrscreen notification <subcommand>",
                 "Notification helpers over the socket API",

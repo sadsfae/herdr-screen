@@ -211,7 +211,9 @@ impl ActionKeybinds {
                 Some(ParsedBinding::Single(binding)) => bindings.push(binding),
                 Some(ParsedBinding::Range(range)) => bindings.extend(range),
                 Some(ParsedBinding::RepeatedPrefix) => {
-                    return Err(format!("repeated-prefix is not an endpoint binding: {label}"));
+                    return Err(format!(
+                        "repeated-prefix is not an endpoint binding: {label}"
+                    ));
                 }
                 None => return Err(format!("invalid endpoint command binding: {label}")),
             }
@@ -2565,11 +2567,13 @@ help = "prefix+prefix"
         let keybinds = config.keybinds();
         assert_eq!(keybinds.help.bindings.len(), 1);
         assert!(keybinds.last_tab.bindings.is_empty());
-        assert!(config
-            .collect_diagnostics()
-            .iter()
-            .any(|diag| diag.contains("kept keys.help")
-                && diag.contains("disabled keys.last_tab")));
+        assert!(
+            config
+                .collect_diagnostics()
+                .iter()
+                .any(|diag| diag.contains("kept keys.help")
+                    && diag.contains("disabled keys.last_tab"))
+        );
     }
 
     #[test]
@@ -2591,18 +2595,15 @@ switch_tab = "prefix+prefix"
     }
 }
 
-    #[test]
-    fn herdrscreen_defaults_are_gnu_screen_style() {
-        let config = Config::default();
-        assert_eq!(
-            DEFAULT_PREFIX,
-            (KeyCode::Char('a'), KeyModifiers::CONTROL)
-        );
-        assert_eq!(config.keys.prefix.values(), vec!["ctrl+a"]);
-        assert_eq!(config.keys.last_tab.values(), vec!["prefix+prefix"]);
-        let keybinds = config.keybinds();
-        assert_eq!(keybinds.last_tab.bindings.len(), 1);
-        assert_eq!(keybinds.last_tab.bindings[0].label, "prefix+prefix");
-        assert!(!config.update.version_check);
-        assert!(!config.update.manifest_check);
-    }
+#[test]
+fn herdrscreen_defaults_are_gnu_screen_style() {
+    let config = Config::default();
+    assert_eq!(DEFAULT_PREFIX, (KeyCode::Char('a'), KeyModifiers::CONTROL));
+    assert_eq!(config.keys.prefix.values(), vec!["ctrl+a"]);
+    assert_eq!(config.keys.last_tab.values(), vec!["prefix+prefix"]);
+    let keybinds = config.keybinds();
+    assert_eq!(keybinds.last_tab.bindings.len(), 1);
+    assert_eq!(keybinds.last_tab.bindings[0].label, "prefix+prefix");
+    assert!(!config.update.version_check);
+    assert!(!config.update.manifest_check);
+}

@@ -366,10 +366,8 @@ mod tests {
 
     #[test]
     fn repeated_prefix_resolves_to_bound_action() {
-        let config: crate::config::Config = toml::from_str(
-            "[keys]\nprefix = \"ctrl+a\"\nlast_tab = \"prefix+prefix\"\n",
-        )
-        .unwrap();
+        let config: crate::config::Config =
+            toml::from_str("[keys]\nprefix = \"ctrl+a\"\nlast_tab = \"prefix+prefix\"\n").unwrap();
         assert!(config.collect_diagnostics().is_empty());
         let keybinds = config.keybinds();
 
@@ -393,10 +391,9 @@ mod tests {
 
     #[test]
     fn repeated_prefix_ignores_generated_character_fallback() {
-        let config: crate::config::Config = toml::from_str(
-            "[keys]\nprefix = \"ctrl+a\"\nhelp = \"prefix+a\"\nlast_tab = \"\"\n",
-        )
-        .unwrap();
+        let config: crate::config::Config =
+            toml::from_str("[keys]\nprefix = \"ctrl+a\"\nhelp = \"prefix+a\"\nlast_tab = \"\"\n")
+                .unwrap();
         let keybinds = config.keybinds();
         let prefix_key = TerminalKey::new(KeyCode::Char('a'), KeyModifiers::CONTROL);
         assert!(resolve_exact_binding(&keybinds, &prefix_key, KeybindDispatch::Prefix).is_none());

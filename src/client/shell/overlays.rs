@@ -127,10 +127,8 @@ fn render_window_list_overlay(
         Style::default().fg(p.surface1).bg(p.panel_bg),
     );
     let body = Rect::new(i.x, i.y + 2, i.width, i.height.saturating_sub(4));
-    let rows =
-        super::aggregate_navigation::window_list_rows(endpoints, active_endpoint_id);
-    let selected =
-        super::aggregate_navigation::window_list_selected_index(&rows, w).unwrap_or(0);
+    let rows = super::aggregate_navigation::window_list_rows(endpoints, active_endpoint_id);
+    let selected = super::aggregate_navigation::window_list_selected_index(&rows, w).unwrap_or(0);
     let max = rows.len().saturating_sub(body.height as usize);
     let scroll = w
         .scroll

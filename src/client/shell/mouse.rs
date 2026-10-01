@@ -1621,8 +1621,7 @@ impl ClientShellState {
             match mouse.kind {
                 MouseEventKind::Moved => {
                     if let Some((_, target)) = row_hit {
-                        if let Some(ClientShellOverlay::WindowList(overlay)) =
-                            self.overlay.as_mut()
+                        if let Some(ClientShellOverlay::WindowList(overlay)) = self.overlay.as_mut()
                         {
                             overlay.selected = Some(target);
                         }
@@ -1631,8 +1630,7 @@ impl ClientShellState {
                 }
                 MouseEventKind::Down(MouseButton::Left) => {
                     if let Some((_, target)) = row_hit {
-                        if let Some(ClientShellOverlay::WindowList(overlay)) =
-                            self.overlay.as_mut()
+                        if let Some(ClientShellOverlay::WindowList(overlay)) = self.overlay.as_mut()
                         {
                             overlay.selected = Some(target);
                         }

@@ -259,9 +259,7 @@ impl ClientShellState {
             return;
         };
         self.push_endpoint_method(
-            crate::api::schema::Method::TabFocus(crate::api::schema::TabTarget {
-                tab_id,
-            }),
+            crate::api::schema::Method::TabFocus(crate::api::schema::TabTarget { tab_id }),
             outcome,
         );
     }
@@ -688,8 +686,7 @@ impl ClientShellState {
             return;
         }
         if matches!(self.overlay, Some(ClientShellOverlay::WindowList(_))) {
-            let (code, modifiers) =
-                crate::config::normalize_key_combo((key.code, key.modifiers));
+            let (code, modifiers) = crate::config::normalize_key_combo((key.code, key.modifiers));
             if code == KeyCode::Esc {
                 self.overlay = None;
                 outcome.repaint = true;

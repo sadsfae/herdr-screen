@@ -4,6 +4,7 @@
 <a href="https://github.com/sadsfae/herdrscreen/releases"><img src="https://img.shields.io/badge/DEB-Debian%20%2F%20Ubuntu-blue?logo=debian&logoColor=white" alt="Debian packages for Debian and Ubuntu" /></a>
 <a href="https://github.com/sadsfae/herdrscreen/blob/main/packaging/AUR/PKGBUILD"><img src="https://img.shields.io/badge/AUR-Arch%20Linux-1793d1?logo=archlinux&logoColor=white" alt="AUR package for Arch Linux" /></a>
 <a href="https://github.com/sadsfae/herdrscreen/releases"><img src="https://img.shields.io/badge/Slackware-txz-2eb8e6?logo=slackware&logoColor=white" alt="Slackware package" /></a>
+<a href="https://github.com/sadsfae/herdrscreen/releases"><img src="https://img.shields.io/badge/FreeBSD-pkg-AB2B28?logo=freebsd&logoColor=white" alt="FreeBSD package" /></a>
 
 herdrscreen is a GNU screen edition hard fork of [Herdr](https://github.com/herdrdev/herdr)
 (Apache-2.0, (C) the Herdr Project contributors), a terminal workspace manager for AI coding
@@ -20,10 +21,11 @@ agents. It keeps Herdr's engine and adds:
   (`herdr tab focus`) still moves the whole session.
 - No self-update: `herdrscreen update` is stubbed and version/manifest checks are off. Install
   updates from the [releases page](https://github.com/sadsfae/herdrscreen/releases): RPMs for
-  EL8/EL9/EL10 and Fedora, a deb for Debian/Ubuntu, and an AUR package.
+  EL8/EL9/EL10 and Fedora, a deb for Debian/Ubuntu, an AUR package, a Slackware txz, and a
+  FreeBSD pkg.
 - Config and session state stay in Herdr's usual paths (`~/.config/herdr`,
   `~/.local/state/herdr`), so herdrscreen is a drop-in replacement for existing Herdr setups.
-- No curl to bash: native packages for Red Hat, Debian, Arch, and Slackware Linux based distributions.
+- No curl to bash: native packages for Red Hat, Debian, Arch, Slackware, and FreeBSD.
 
 Licensing and attribution: Apache-2.0. See [LICENSE](LICENSE), [NOTICE](NOTICE), and
 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) (QUADS-derived, not upstream's).

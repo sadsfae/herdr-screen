@@ -2130,11 +2130,19 @@ async fn client_local_focus_keeps_snapshots_independent_like_screen() {
     let second_pane = workspace.tabs[second_tab].root_pane;
     let (first_runtime, _) =
         crate::terminal::TerminalRuntime::test_with_channel_and_scrollback_bytes(
-            80, 24, 0, b"\x1b[?1004h", 4,
+            80,
+            24,
+            0,
+            b"\x1b[?1004h",
+            4,
         );
     let (second_runtime, _) =
         crate::terminal::TerminalRuntime::test_with_channel_and_scrollback_bytes(
-            80, 24, 0, b"\x1b[?1004h", 4,
+            80,
+            24,
+            0,
+            b"\x1b[?1004h",
+            4,
         );
     workspace.insert_test_runtime(first_pane, first_runtime);
     workspace.insert_test_runtime(second_pane, second_runtime);
@@ -2150,9 +2158,8 @@ async fn client_local_focus_keeps_snapshots_independent_like_screen() {
     let _ = first_control.recv().expect("first snapshot");
     let _ = second_control.recv().expect("second snapshot");
 
-    let location = |server: &HeadlessServer, client_id| {
-        server.clients[&client_id].shell_location.clone()
-    };
+    let location =
+        |server: &HeadlessServer, client_id| server.clients[&client_id].shell_location.clone();
     let snapshot_tab = |server: &HeadlessServer, client_id| {
         crate::server::client_shell::snapshot_with_completions(
             &server.app,
@@ -2164,8 +2171,14 @@ async fn client_local_focus_keeps_snapshots_independent_like_screen() {
         .0
         .focused_tab_id
     };
-    assert_eq!(snapshot_tab(&server, 61).as_deref(), Some(first_tab_id.as_str()));
-    assert_eq!(snapshot_tab(&server, 62).as_deref(), Some(first_tab_id.as_str()));
+    assert_eq!(
+        snapshot_tab(&server, 61).as_deref(),
+        Some(first_tab_id.as_str())
+    );
+    assert_eq!(
+        snapshot_tab(&server, 62).as_deref(),
+        Some(first_tab_id.as_str())
+    );
 
     let (respond_to, _response_rx) = std::sync::mpsc::channel();
     server.handle_client_shell_api_request(
@@ -2192,8 +2205,14 @@ async fn client_local_focus_keeps_snapshots_independent_like_screen() {
         Some(first_tab_id.as_str()),
         "the other client stays on its own tab"
     );
-    assert_eq!(snapshot_tab(&server, 61).as_deref(), Some(second_tab_id.as_str()));
-    assert_eq!(snapshot_tab(&server, 62).as_deref(), Some(first_tab_id.as_str()));
+    assert_eq!(
+        snapshot_tab(&server, 61).as_deref(),
+        Some(second_tab_id.as_str())
+    );
+    assert_eq!(
+        snapshot_tab(&server, 62).as_deref(),
+        Some(first_tab_id.as_str())
+    );
     shutdown_test_runtimes(&mut server);
 }
 
