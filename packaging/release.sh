@@ -12,6 +12,7 @@ VERSION="0.1.0"
 REPO="https://github.com/sadsfae/herdrscreen"
 DIST="dist"
 ZIG="${ZIG:-/tmp/zig-x86_64-linux-0.16.0/zig}"
+CARGO="${CARGO:-cargo}"
 mkdir -p "$DIST"
 
 echo "== static musl build"
@@ -19,7 +20,7 @@ ZIG="$ZIG" \
 HERDR_BUILD_CHANNEL=herdrscreen \
 LIBGHOSTTY_VT_OPTIMIZE=ReleaseFast \
 LIBGHOSTTY_VT_SIMD=true \
-  cargo build --release --target x86_64-unknown-linux-musl
+  "$CARGO" build --release --target x86_64-unknown-linux-musl
 cp target/x86_64-unknown-linux-musl/release/herdrscreen "$DIST/herdrscreen-linux-x86_64"
 
 echo "== RPMs"
