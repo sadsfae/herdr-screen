@@ -17,15 +17,6 @@ agents. It keeps Herdr's engine and adds:
 
 ## Features
 
-- [Install](#install)
-  - [RPM](#rpm)
-  - [Deb](#deb)
-  - [AUR](#aur)
-  - [Slackware](#slackware)
-  - [FreeBSD](#freebsd)
-- [About](#about)
-- [Upstream herdr Docs](#upstream-herdr-docs)
-
 - GNU screen keybindings by default: prefix is `ctrl+a` (set `prefix = "ctrl+b"` for the
   tmux style), and `ctrl+a ctrl+a` toggles back to the last focused tab
   (`keys.last_tab = "prefix+prefix"`).
@@ -42,6 +33,15 @@ agents. It keeps Herdr's engine and adds:
 - Config and session state stay in Herdr's usual paths (`~/.config/herdr`,
   `~/.local/state/herdr`), so herdrscreen is a drop-in replacement for existing Herdr setups.
 - No curl to bash: native packages for Red Hat, Debian, Arch, Slackware, and FreeBSD.
+
+- [Install](#install)
+  - [RPM](#rpm)
+  - [Deb](#deb)
+  - [AUR](#aur)
+  - [Slackware](#slackware)
+  - [FreeBSD](#freebsd)
+[About](#about)
+[Upstream herdr Docs](#upstream-herdr-docs)
 
 Licensing and attribution: Apache-2.0. See [LICENSE](LICENSE), [NOTICE](NOTICE), and
 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
