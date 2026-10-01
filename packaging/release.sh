@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build all herdrscreen v0.1.0 release artifacts into ./dist:
 #   - herdrscreen-linux-x86_64          (musl static-pie binary)
-#   - herdrscreen-0.1.0-1.el8.x86_64.rpm  (+ el9, el10, fc43, fc44)
+#   - herdrscreen-0.1.0-1.el8.x86_64.rpm  (+ el9, el10, fc42, fc43, fc44)
 #   - herdrscreen_0.1.0_amd64.deb
 #   - herdrscreen-0.1.0.tar.gz          (source snapshot of HEAD)
 #   - SHA256SUMS
@@ -28,7 +28,7 @@ cp target/x86_64-unknown-linux-musl/release/herdrscreen "$DIST/herdrscreen-linux
 
 echo "== RPMs"
 TOP="$PWD/build-rpm"
-for tag in el8 el9 el10 fc43 fc44; do
+for tag in el8 el9 el10 fc42 fc43 fc44; do
   rm -rf "$TOP"
   mkdir -p "$TOP"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
   cp "$DIST/herdrscreen-linux-x86_64" "$TOP/SOURCES/herdrscreen"
