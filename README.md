@@ -10,6 +10,13 @@ herdrscreen is a GNU screen edition hard fork of [Herdr](https://github.com/herd
 (Apache-2.0, (C) the Herdr Project contributors), a terminal workspace manager for AI coding
 agents. It keeps Herdr's engine and adds:
 
+## Why?
+
+- herdr with more GNU screen-style features for old salty dogs
+- More future features around server/infra management while retaining agentic focus
+
+## Features
+
 - [Install](#install)
   - [RPM](#rpm)
   - [Deb](#deb)
@@ -18,8 +25,6 @@ agents. It keeps Herdr's engine and adds:
   - [FreeBSD](#freebsd)
 - [About](#about)
 - [Upstream herdr Docs](#upstream-herdr-docs)
-
-## Features
 
 - GNU screen keybindings by default: prefix is `ctrl+a` (set `prefix = "ctrl+b"` for the
   tmux style), and `ctrl+a ctrl+a` toggles back to the last focused tab
@@ -40,8 +45,6 @@ agents. It keeps Herdr's engine and adds:
 
 Licensing and attribution: Apache-2.0. See [LICENSE](LICENSE), [NOTICE](NOTICE), and
 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
-
----
 
 https://github.com/user-attachments/assets/043ec09f-4bdd-41d5-aee0-8fda6b83e267
 
