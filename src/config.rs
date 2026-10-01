@@ -238,7 +238,7 @@ prefix = "ctrl+"
         let profile = config.local_keybindings_profile_toml().unwrap();
         let keybinds = keybindings_from_profile_toml(&profile).unwrap();
 
-        assert!(profile.contains("prefix = \"ctrl+b\""));
+        assert!(profile.contains("prefix = \"ctrl+a\""));
         assert_eq!(keybinds.prefix, config.prefix_keys());
     }
 
