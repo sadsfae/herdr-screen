@@ -28,34 +28,15 @@ agents. It keeps Herdr's engine and adds:
 - No curl to bash: native packages for Red Hat, Debian, Arch, Slackware, and FreeBSD.
 
 Licensing and attribution: Apache-2.0. See [LICENSE](LICENSE), [NOTICE](NOTICE), and
-[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) (QUADS-derived, not upstream's).
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
-The content below is the upstream Herdr README.
+The rest of this README carries over from upstream Herdr.
 
 ---
 
 <p align="center">
   <img src="assets/logo.png" alt="herdr" width="100" />
 </p>
-
-<p align="center">
-  <a href="https://herdr.dev">herdr.dev</a> · <a href="#install">install</a> · <a href="https://herdr.dev/docs/quick-start/">quick start</a> · <a href="https://herdr.dev/docs/">docs</a>
-</p>
-
-<p align="center">
-  English · <a href="README.zh-CN.md">简体中文</a>
-</p>
-
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-666666?labelColor=333333" alt="Apache 2.0 license" /></a>
-  <a href="https://github.com/herdrdev/herdr/releases"><img src="https://img.shields.io/github/downloads/herdrdev/herdr/total?labelColor=333333&color=666666" alt="total GitHub release downloads" /></a>
-  <a href="https://github.com/herdrdev/herdr/stargazers"><img src="https://img.shields.io/github/stars/herdrdev/herdr?labelColor=333333&color=666666&logo=github" alt="GitHub stars" /></a>
-  <a href="https://github.com/herdrdev/herdr/releases/latest"><img src="https://img.shields.io/github/v/release/herdrdev/herdr?label=release&labelColor=333333&color=666666" alt="latest stable release" /></a>
-  <a href="https://formulae.brew.sh/formula/herdr"><img src="https://img.shields.io/homebrew/v/herdr?label=homebrew&labelColor=333333&color=666666" alt="Homebrew version" /></a>
-  <a href="https://x.com/herdrdev"><img src="https://img.shields.io/badge/follow-%40herdrdev-000000?logo=x&logoColor=white" alt="follow @herdrdev on X" /></a>
-</p>
-
----
 
 https://github.com/user-attachments/assets/043ec09f-4bdd-41d5-aee0-8fda6b83e267
 
@@ -74,11 +55,54 @@ https://github.com/user-attachments/assets/043ec09f-4bdd-41d5-aee0-8fda6b83e267
 
 ## install
 
+Download the matching package for your OS from the
+[releases page](https://github.com/sadsfae/herdrscreen/releases), or install straight from
+the commands below. No curl to bash and no self-update: to update, install the new package
+when a release is cut.
+
+### rpm
+
+Fedora:
+
 ```bash
-curl -fsSL https://herdr.dev/install.sh | sh
+sudo dnf install ./herdrscreen-0.2.0-1.fc43.x86_64.rpm
 ```
 
-or `brew install herdr` · `mise use -g herdr` · windows: `powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"` · [endpoint-protected Windows](https://herdr.dev/docs/windows-beta/) · [binaries](https://github.com/herdrdev/herdr/releases)
+RHEL / Rocky / AlmaLinux 8, 9, or 10 (use the matching `el8`, `el9`, or `el10` asset):
+
+```bash
+sudo dnf install ./herdrscreen-0.2.0-1.el9.x86_64.rpm
+```
+
+### deb
+
+Debian / Ubuntu:
+
+```bash
+sudo apt install ./herdrscreen_0.2.0_amd64.deb
+```
+
+### aur
+
+Arch Linux (the PKGBUILD ships in-repo; build it until it lands on the AUR):
+
+```bash
+git clone --depth 1 https://github.com/sadsfae/herdrscreen
+cd herdrscreen/packaging/AUR
+makepkg -si
+```
+
+### slackware
+
+```bash
+installpkg herdrscreen-0.2.0-x86_64-1.txz
+```
+
+### freebsd
+
+```bash
+pkg add ./herdrscreen-0.2.0.pkg
+```
 
 then start it where the work lives:
 
@@ -86,7 +110,7 @@ then start it where the work lives:
 herdr
 ```
 
-run your agents, split panes, walk away. `ctrl+b q` detaches, `herdr` reattaches. [quick start →](https://herdr.dev/docs/quick-start/)
+run your agents, split panes, walk away. `ctrl+a q` detaches, `herdr` reattaches. [quick start →](https://herdr.dev/docs/quick-start/)
 
 ## docs
 
