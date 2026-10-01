@@ -59,6 +59,8 @@ when a release is cut.
 
 ### RPM
 
+<img src="assets/redhat.png" alt="RPM" width="22" />
+
 Fedora:
 
 ```bash
@@ -73,6 +75,8 @@ sudo dnf install ./herdrscreen-0.2.0-1.el9.x86_64.rpm
 
 ### Deb
 
+<img src="assets/debian.png" alt="Deb" width="22" />
+
 Debian / Ubuntu:
 
 ```bash
@@ -80,6 +84,8 @@ sudo apt install ./herdrscreen_0.2.0_amd64.deb
 ```
 
 ### AUR
+
+<img src="assets/arch.png" alt="AUR" width="22" />
 
 Arch Linux (the PKGBUILD ships in-repo; build it until it lands on the AUR):
 
@@ -91,11 +97,15 @@ makepkg -si
 
 ### Slackware
 
+<img src="assets/slackware.png" alt="Slackware" width="22" />
+
 ```bash
 installpkg herdrscreen-0.2.0-x86_64-1.txz
 ```
 
 ### FreeBSD
+
+<img src="assets/freebsd.png" alt="FreeBSD" width="22" />
 
 ```bash
 pkg add ./herdrscreen-0.2.0.pkg
