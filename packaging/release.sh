@@ -13,6 +13,9 @@ REPO="https://github.com/sadsfae/herdrscreen"
 DIST="dist"
 ZIG="${ZIG:-/tmp/zig-x86_64-linux-0.16.0/zig}"
 CARGO="${CARGO:-cargo}"
+if [ -n "${TOOLCHAIN_BIN:-}" ]; then
+  export PATH="$TOOLCHAIN_BIN:$PATH"
+fi
 mkdir -p "$DIST"
 
 echo "== static musl build"
