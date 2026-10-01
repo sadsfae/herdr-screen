@@ -1,10 +1,8 @@
 # herdrscreen
 
-<p align="center">
-  <a href="https://github.com/sadsfae/herdrscreen/releases"><img src="https://img.shields.io/badge/RPM-Red%20Hat%20%2F%20Rocky%20%2F%20Alma%20EL8%2F9%2F10%20%2F%20Fedora-red?logo=redhat&logoColor=white" alt="RPM packages for Red Hat based distributions" /></a>
-  <a href="https://github.com/sadsfae/herdrscreen/releases"><img src="https://img.shields.io/badge/DEB-Debian%20%2F%20Ubuntu-blue?logo=debian&logoColor=white" alt="Debian packages for Debian and Ubuntu" /></a>
-  <a href="https://github.com/sadsfae/herdrscreen/blob/main/packaging/AUR/PKGBUILD"><img src="https://img.shields.io/badge/AUR-Arch%20Linux-1793d1?logo=archlinux&logoColor=white" alt="AUR package for Arch Linux" /></a>
-</p>
+<a href="https://github.com/sadsfae/herdrscreen/releases"><img src="https://img.shields.io/badge/RPM-Red%20Hat%20%2F%20Rocky%20%2F%20Alma%20EL8%2F9%2F10%20%2F%20Fedora-red?logo=redhat&logoColor=white" alt="RPM packages for Red Hat based distributions" /></a>
+<a href="https://github.com/sadsfae/herdrscreen/releases"><img src="https://img.shields.io/badge/DEB-Debian%20%2F%20Ubuntu-blue?logo=debian&logoColor=white" alt="Debian packages for Debian and Ubuntu" /></a>
+<a href="https://github.com/sadsfae/herdrscreen/blob/main/packaging/AUR/PKGBUILD"><img src="https://img.shields.io/badge/AUR-Arch%20Linux-1793d1?logo=archlinux&logoColor=white" alt="AUR package for Arch Linux" /></a>
 
 herdrscreen is a GNU screen edition hard fork of [Herdr](https://github.com/herdrdev/herdr)
 (Apache-2.0, (C) the Herdr Project contributors), a terminal workspace manager for AI coding
