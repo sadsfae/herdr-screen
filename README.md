@@ -34,7 +34,7 @@ agents. It keeps Herdr's engine and adds:
   `~/.local/state/herdr`), so herdrscreen is a drop-in replacement for existing Herdr setups.
 - No curl to bash: native packages for Red Hat, Debian, Arch, Slackware, and FreeBSD.
 
-- [Install](#install)
+[Install](#install)
   - [RPM](#rpm)
   - [Deb](#deb)
   - [AUR](#aur)
