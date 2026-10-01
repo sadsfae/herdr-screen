@@ -1,5 +1,11 @@
 # herdrscreen
 
+<p align="center">
+  <a href="https://github.com/sadsfae/herdrscreen/releases"><img src="https://img.shields.io/badge/RPM-Red%20Hat%20%2F%20Rocky%20%2F%20Alma%20EL8%2F9%2F10%20%2F%20Fedora-red?logo=redhat&logoColor=white" alt="RPM packages for Red Hat based distributions" /></a>
+  <a href="https://github.com/sadsfae/herdrscreen/releases"><img src="https://img.shields.io/badge/DEB-Debian%20%2F%20Ubuntu-blue?logo=debian&logoColor=white" alt="Debian packages for Debian and Ubuntu" /></a>
+  <a href="https://github.com/sadsfae/herdrscreen/blob/main/packaging/AUR/PKGBUILD"><img src="https://img.shields.io/badge/AUR-Arch%20Linux-1793d1?logo=archlinux&logoColor=white" alt="AUR package for Arch Linux" /></a>
+</p>
+
 herdrscreen is a GNU screen edition hard fork of [Herdr](https://github.com/herdrdev/herdr)
 (Apache-2.0, (C) the Herdr Project contributors), a terminal workspace manager for AI coding
 agents. It keeps Herdr's engine and adds:
@@ -12,6 +18,7 @@ agents. It keeps Herdr's engine and adds:
   EL8/EL9/EL10 and Fedora, a deb for Debian/Ubuntu, and an AUR package.
 - Config and session state stay in Herdr's usual paths (`~/.config/herdr`,
   `~/.local/state/herdr`), so herdrscreen is a drop-in replacement for existing Herdr setups.
+- No curl to bash: native packages for Red Hat, Debian, and Arch Linux based distributions.
 
 Licensing and attribution: Apache-2.0. See [LICENSE](LICENSE), [NOTICE](NOTICE), and
 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) (QUADS-derived, not upstream's).
