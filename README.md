@@ -43,10 +43,6 @@ Licensing and attribution: Apache-2.0. See [LICENSE](LICENSE), [NOTICE](NOTICE),
 
 ---
 
-<p align="center">
-  <img src="assets/logo.png" alt="herdr" width="100" />
-</p>
-
 https://github.com/user-attachments/assets/043ec09f-4bdd-41d5-aee0-8fda6b83e267
 
 ## Install
