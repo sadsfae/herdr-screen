@@ -570,13 +570,8 @@ fn window_list_entries_from(
         });
         if expanded || search_active {
             for tab in workspace_tabs {
-                let label = if tab.custom_label || tab.label.parse::<usize>().is_err() {
-                    tab.label.as_str()
-                } else {
-                    workspace.label.as_str()
-                };
                 entries.push(ClientWindowListEntry::Tab(ClientWindowListRow {
-                    label: label.to_owned(),
+                    label: tab.label.clone(),
                     current: tab.focused,
                     target: ClientWindowListTarget::Tab {
                         tab_id: tab.tab_id.clone(),
@@ -695,6 +690,18 @@ mod tests {
                 expanded: false,
                 ..
             }
+        ));
+    }
+
+    #[test]
+    fn auto_named_tabs_keep_their_exact_label() {
+        let workspaces = [workspace("ws1", "QIIP/CLAUDE")];
+        let mut auto_tab = tab("ws1", "t1", "2", true);
+        auto_tab.custom_label = false;
+        let entries = window_list_entries_from(&workspaces, &[auto_tab], &overlay("", &[]));
+        assert!(matches!(
+            &entries[1],
+            ClientWindowListEntry::Tab(ClientWindowListRow { label, .. }) if label == "2"
         ));
     }
 
