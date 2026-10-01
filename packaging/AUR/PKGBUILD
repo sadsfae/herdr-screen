@@ -12,8 +12,8 @@ provides=('herdrscreen')
 conflicts=('herdrscreen')
 source=("herdrscreen-linux-x86_64::https://github.com/sadsfae/herdrscreen/releases/download/v${pkgver}/herdrscreen-linux-x86_64"
         "LICENSE::https://raw.githubusercontent.com/sadsfae/herdrscreen/v${pkgver}/LICENSE")
-sha256sums=('__SHA_BINARY__'
-            '__SHA_LICENSE__')
+sha256sums=('091a8673751a756d63febcd81adebbc37f5949fa4d4b6f7792817c9a10713d83'
+            'c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4')
 
 package() {
   install -Dm755 "$srcdir/herdrscreen-linux-x86_64" "$pkgdir/usr/bin/herdrscreen"
