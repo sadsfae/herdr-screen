@@ -64,6 +64,8 @@ headless_rows = 50
 
 With one attached client, all tabs follow its size. With multiple clients, each viewed tab follows the client that most recently focused, selected, or interacted with it. When all but one client detach, all tabs immediately return to the remaining client's size. When no clients remain, existing pane PTYs retain their last size and new headless layout uses the configured fallback.
 
+Multi-attach follows GNU screen: each attached client keeps its own viewed tab and workspace, so one client switching tabs never moves another. Client keyboard and mouse focus (`TabFocus`, `PaneFocus`, `WorkspaceFocus`) moves only the requesting client. Requests through the socket CLI (`herdr tab focus`) still move the session's default focus.
+
 ## Terminal defaults
 
 Set the executable Herdr uses for newly created interactive panes:

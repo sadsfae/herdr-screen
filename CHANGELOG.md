@@ -16,10 +16,16 @@ Initial herdrscreen release: a GNU screen edition hard fork of Herdr 0.9.3
 
 ## Unreleased
 
+## [0.2.0] - 2026-10-01
+
 ### Added
-- Bind `keys.last_tab` to focus the previously focused tab. The `prefix+prefix` binding runs an action when the prefix key is pressed again, so with `prefix = "ctrl+a"` and `last_tab = "prefix+prefix"`, `ctrl+a` `ctrl+a` toggles tabs like GNU screen and tmux. Unset by default.
+- Screen-style multi-attach: each connected client keeps its own viewed tab, so one client switching tabs never moves another (GNU screen behavior; tmux moves everyone). Client `TabFocus`/`PaneFocus`/`WorkspaceFocus` is local to the requesting client; socket CLI focus still moves the session.
 - Screen-style window list: `keys.window_list` (default `prefix+"`) opens an overlay listing every tab across all workspaces. Mouse or up/down (`j`/`k`) selects, Enter focuses, Esc closes.
 - Screen-style terminal lock: `keys.lock` (default `prefix+ctrl+x`) runs `keys.lock_command` (default `loginctl lock-session`) to lock the terminal, like GNU screen's lockscreen. With ctrl+a as the prefix, `ctrl+a ctrl+x` locks; screen's `prefix+x` stays bound to close pane.
+- Bind `keys.last_tab` to focus the previously focused tab. The `prefix+prefix` binding runs an action when the prefix key is pressed again, so with `prefix = "ctrl+a"` and `last_tab = "prefix+prefix"`, `ctrl+a` `ctrl+a` toggles tabs like GNU screen and tmux. Unset by default.
+
+### Changed
+- Continuous package builds: a GitHub Actions workflow builds the musl binary, RPMs (el8/el9/el10/fc43/fc44), deb, source tarball, and SHA256SUMS on push to main (published to a rolling `nightly` prerelease) and on `v*` tags (published as a versioned release). `release.sh` accepts `VERSION`; the RPM spec marks installed doc/license paths so Ubuntu rpmbuild works.
 
 ## [0.9.3] - 2026-09-29
 

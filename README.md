@@ -14,6 +14,9 @@ agents. It keeps Herdr's engine and adds:
 - Screen-style overview and lock: `ctrl+a "` lists every tab across workspaces (mouse or
   arrows select, enter focuses), and `ctrl+a ctrl+x` locks the terminal via
   `keys.lock_command` (default `loginctl lock-session`).
+- Screen-style multi-attach: every connected client keeps its own viewed tab, so one
+  client switching tabs never moves another (tmux moves everyone). Socket CLI focus
+  (`herdr tab focus`) still moves the whole session.
 - No self-update: `herdrscreen update` is stubbed and version/manifest checks are off. Install
   updates from the [releases page](https://github.com/sadsfae/herdrscreen/releases): RPMs for
   EL8/EL9/EL10 and Fedora, a deb for Debian/Ubuntu, and an AUR package.

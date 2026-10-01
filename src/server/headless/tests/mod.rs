@@ -2120,6 +2120,84 @@ async fn client_local_navigation_does_not_emit_global_focus_transitions() {
 }
 
 #[tokio::test]
+async fn client_local_focus_keeps_snapshots_independent_like_screen() {
+    use api::schema::{Method, TabTarget};
+
+    let mut server = test_headless_server();
+    let mut workspace = crate::workspace::Workspace::test_new("screen-multiuser");
+    let first_pane = workspace.tabs[0].root_pane;
+    let second_tab = workspace.test_add_tab(Some("second"));
+    let second_pane = workspace.tabs[second_tab].root_pane;
+    let (first_runtime, _) =
+        crate::terminal::TerminalRuntime::test_with_channel_and_scrollback_bytes(
+            80, 24, 0, b"\x1b[?1004h", 4,
+        );
+    let (second_runtime, _) =
+        crate::terminal::TerminalRuntime::test_with_channel_and_scrollback_bytes(
+            80, 24, 0, b"\x1b[?1004h", 4,
+        );
+    workspace.insert_test_runtime(first_pane, first_runtime);
+    workspace.insert_test_runtime(second_pane, second_runtime);
+    server.app.state.workspaces = vec![workspace];
+    server.app.state.active = Some(0);
+    server.app.state.selected = 0;
+    server.app.state.mode = crate::app::Mode::Terminal;
+    let first_tab_id = server.app.public_tab_id(0, 0).unwrap();
+    let second_tab_id = server.app.public_tab_id(0, second_tab).unwrap();
+
+    let (first_control, _) = connect_matching_test_shell(&mut server, 61);
+    let (second_control, _) = connect_matching_test_shell(&mut server, 62);
+    let _ = first_control.recv().expect("first snapshot");
+    let _ = second_control.recv().expect("second snapshot");
+
+    let location = |server: &HeadlessServer, client_id| {
+        server.clients[&client_id].shell_location.clone()
+    };
+    let snapshot_tab = |server: &HeadlessServer, client_id| {
+        crate::server::client_shell::snapshot_with_completions(
+            &server.app,
+            &server.client_shell_boot_id,
+            0,
+            None,
+            location(server, client_id).as_ref(),
+        )
+        .0
+        .focused_tab_id
+    };
+    assert_eq!(snapshot_tab(&server, 61).as_deref(), Some(first_tab_id.as_str()));
+    assert_eq!(snapshot_tab(&server, 62).as_deref(), Some(first_tab_id.as_str()));
+
+    let (respond_to, _response_rx) = std::sync::mpsc::channel();
+    server.handle_client_shell_api_request(
+        61,
+        crate::api::ApiRequestMessage {
+            request: crate::api::schema::Request {
+                id: "screen-switch".into(),
+                method: Method::TabFocus(TabTarget {
+                    tab_id: second_tab_id.clone(),
+                }),
+            },
+            respond_to,
+            response_write_complete: None,
+        },
+    );
+
+    assert_eq!(
+        server.shell_tab_id_for_client(61).as_deref(),
+        Some(second_tab_id.as_str()),
+        "the navigating client views the new tab"
+    );
+    assert_eq!(
+        server.shell_tab_id_for_client(62).as_deref(),
+        Some(first_tab_id.as_str()),
+        "the other client stays on its own tab"
+    );
+    assert_eq!(snapshot_tab(&server, 61).as_deref(), Some(second_tab_id.as_str()));
+    assert_eq!(snapshot_tab(&server, 62).as_deref(), Some(first_tab_id.as_str()));
+    shutdown_test_runtimes(&mut server);
+}
+
+#[tokio::test]
 async fn client_local_navigation_emits_pane_focused_only_when_that_client_moves() {
     use api::schema::{EventData, Method, PaneTarget, TabTarget};
 
