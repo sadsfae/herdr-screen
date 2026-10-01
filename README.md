@@ -1,5 +1,24 @@
-# herdr
+# herdrscreen
 
+herdrscreen is a GNU screen edition hard fork of [Herdr](https://github.com/herdrdev/herdr)
+(Apache-2.0, (C) the Herdr Project contributors), a terminal workspace manager for AI coding
+agents. It keeps Herdr's engine and adds:
+
+- GNU screen keybindings by default: prefix is `ctrl+a` (set `prefix = "ctrl+b"` for the
+  tmux style), and `ctrl+a ctrl+a` toggles back to the last focused tab
+  (`keys.last_tab = "prefix+prefix"`).
+- No self-update: `herdrscreen update` is stubbed and version/manifest checks are off. Install
+  updates from the [releases page](https://github.com/sadsfae/herdrscreen/releases): RPMs for
+  EL8/EL9/EL10 and Fedora, a deb for Debian/Ubuntu, and an AUR package.
+- Config and session state stay in Herdr's usual paths (`~/.config/herdr`,
+  `~/.local/state/herdr`), so herdrscreen is a drop-in replacement for existing Herdr setups.
+
+Licensing and attribution: Apache-2.0. See [LICENSE](LICENSE), [NOTICE](NOTICE), and
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) (QUADS-derived, not upstream's).
+
+The content below is the upstream Herdr README.
+
+---
 
 <p align="center">
   <img src="assets/logo.png" alt="herdr" width="100" />

@@ -62,7 +62,7 @@ mod update;
 mod workspace;
 mod worktree;
 
-const DEFAULT_CONFIG: &str = r##"# herdr configuration
+const DEFAULT_CONFIG: &str = r##"# herdrscreen configuration
 # Place this file at ~/.config/herdr/config.toml
 
 # Show first-run notification setup on startup.
@@ -119,27 +119,27 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # kitty_graphics = true
 
 [update]
-# Update channel used by background version checks and `herdr update`.
+# Update channel used by background version checks and `herdrscreen update`.
 # Stable builds default to "stable". Windows preview builds default to "preview"
 # so existing preview installs stay there until explicitly switched.
 # channel = "stable"
 
-# Check herdr.dev for new Herdr versions in the background.
-# version_check = true
+# Off in herdrscreen: updates ship as packages (RPM/deb/AUR), not self-update.
+# version_check = false
 
-# Check herdr.dev for remote agent-detection manifest updates in the background.
-# manifest_check = true
+# Off in herdrscreen: the upstream agent-detection manifest is not used.
+# manifest_check = false
 
 [keys]
-# Prefix key to enter prefix mode (default: "ctrl+b")
-# Examples: "ctrl+b", "f12", "esc", "-"
+# Prefix key to enter prefix mode (default: "ctrl+a", GNU screen style)
+# Examples: "ctrl+a", "f12", "esc", "-"
 # Action bindings use explicit syntax: "prefix+n" requires the prefix;
 # "ctrl+alt+n" is a direct terminal-mode shortcut.
 # Accepted key syntax: plain keys, ctrl/shift/alt/cmd/super modifiers, and special keys like enter/tab/esc/left/right/up/down.
 # Named punctuation such as minus, comma, ampersand, plus, and backtick is also accepted.
 # Most reliable direct bindings are ctrl+letter, function keys, and explicit modified chords.
 # alt+..., cmd/super, and punctuation-with-modifiers may depend on your terminal/tmux setup.
-# prefix = "ctrl+b"
+# prefix = "ctrl+a"
 
 # Prefix-mode actions
 # help = "prefix+?"
@@ -160,11 +160,12 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # previous_agent = ""     # optional, unset by default
 # next_agent = ""         # optional, unset by default
 # focus_agent = ""        # optional indexed binding, e.g. "prefix+alt+1..9"
-# remote_image_paste = "ctrl+v" # only active in herdr --remote; empty disables raw-key image paste
+# remote_image_paste = "ctrl+v" # only active in herdrscreen --remote; empty disables raw-key image paste
 # new_tab = "prefix+c"
 # rename_tab = "prefix+shift+t"
 # previous_tab = "prefix+p"
 # next_tab = "prefix+n"
+# last_tab = "prefix+prefix"   # GNU screen C-a C-a: toggle the last focused tab
 # move_tab_previous = ""   # optional, e.g. "alt+shift+left" moves the tab toward the front
 # move_tab_next = ""       # optional, e.g. "alt+shift+right" moves the tab toward the back
 # switch_tab = "prefix+1..9"
@@ -397,18 +398,18 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # startup_per_agent_delay_ms = 100
 
 [remote]
-# Whether herdr manages the ssh config used for `herdr --remote`.
-# When true (default), herdr runs remote ssh through a generated config that
+# Whether herdrscreen manages the ssh config used for `herdrscreen --remote`.
+# When true (default), herdrscreen runs remote ssh through a generated config that
 # includes your ~/.ssh/config first and adds ServerAliveInterval/
 # ServerAliveCountMax as fallbacks (so any keepalive values you set yourself
 # still win) to survive idle network/NAT timeouts. Herdr also uses a private
 # per-attach OpenSSH control socket to reuse the first authenticated connection.
 # Set false to run plain ssh against your ssh config unchanged — this does not
-# force keepalive or multiplexing off, it only stops herdr from adding its own.
+# force keepalive or multiplexing off, it only stops herdrscreen from adding its own.
 # manage_ssh_config = true
 
 [experimental]
-# Allow launching herdr from inside a herdr-managed pane.
+# Allow launching herdrscreen from inside a herdr-managed pane.
 # allow_nested = false
 # Save recent pane screen history across full server restarts.
 pane_history = false
@@ -465,7 +466,7 @@ fn random_nested_message() -> &'static str {
 
 fn exit_if_nested_disabled(config: &config::Config) {
     if should_block_nested(config) {
-        eprintln!("\x1b[1merror:\x1b[0m nested herdr is disabled by default.");
+        eprintln!("\x1b[1merror:\x1b[0m nested herdrscreen is disabled by default.");
         eprintln!("see configuration if you want to enable it.");
         eprintln!();
         eprintln!("\x1b[2m\"{}\"\x1b[0m", random_nested_message());
@@ -508,7 +509,7 @@ fn main() -> io::Result<()> {
         Ok(args) => args,
         Err(err) => {
             eprintln!("error: {err}");
-            eprintln!("run 'herdr --help' for usage");
+            eprintln!("run 'herdrscreen --help' for usage");
             std::process::exit(2);
         }
     };
@@ -519,7 +520,7 @@ fn main() -> io::Result<()> {
         Ok(args) => args,
         Err(err) => {
             eprintln!("error: {err}");
-            eprintln!("run 'herdr --help' for usage");
+            eprintln!("run 'herdrscreen --help' for usage");
             std::process::exit(2);
         }
     };
@@ -527,7 +528,7 @@ fn main() -> io::Result<()> {
         Ok(parsed) => parsed,
         Err(err) => {
             eprintln!("error: {err}");
-            eprintln!("run 'herdr --help' for usage");
+            eprintln!("run 'herdrscreen --help' for usage");
             std::process::exit(2);
         }
     };
@@ -542,7 +543,7 @@ fn main() -> io::Result<()> {
         })
     {
         eprintln!("error: --remote can only be used with the default launch command");
-        eprintln!("run 'herdr --help' for usage");
+        eprintln!("run 'herdrscreen --help' for usage");
         std::process::exit(2);
     }
 
@@ -569,120 +570,102 @@ fn main() -> io::Result<()> {
     }
 
     if args.get(1).map(|s| s.as_str()) == Some("update") {
-        let options = match update::parse_self_update_args(&args[2..]) {
-            Ok(options) => options,
-            Err(err) if err.starts_with("usage:") => {
-                eprintln!("{err}");
-                std::process::exit(0);
-            }
-            Err(err) => {
-                eprintln!("{err}");
-                eprintln!("usage: herdr update [--handoff]");
-                std::process::exit(2);
-            }
-        };
-        match update::self_update(options) {
-            Ok(_) => return Ok(()),
-            Err(e) => {
-                if e.starts_with("self-update is disabled") {
-                    eprintln!("{e}");
-                } else {
-                    eprintln!("update failed: {e}");
-                }
-                std::process::exit(1);
-            }
-        }
+        eprintln!(
+            "herdrscreen does not self-update. Install updates from the GitHub releases page: \
+             https://github.com/sadsfae/herdrscreen/releases (RPM, deb, or your package manager)"
+        );
+        std::process::exit(0);
     }
 
     if args.iter().any(|a| a == "--help" || a == "-h") {
         platform::begin_cli_output();
-        println!("herdr — terminal workspace manager for AI coding agents");
+        println!("herdrscreen — terminal workspace manager for AI coding agents");
         println!();
-        println!("Usage: herdr [options]");
-        println!("       herdr --session <name> [options]");
-        println!("       herdr --machine <label-or-id> <command>");
-        println!("       herdr --remote <ssh-target> [--session <name>]");
-        println!("       herdr session attach <name>");
-        println!("       herdr completion zsh");
-        println!("       herdr update [--handoff]");
-        println!("       herdr channel set <stable|preview>");
-        println!("       herdr machine <subcommand> ...");
-        println!("       herdr server stop");
-        println!("       herdr server reload-config");
-        println!("       herdr api <subcommand> ...");
-        println!("       herdr completion <shell>");
-        println!("       herdr config <subcommand> ...");
-        println!("       herdr channel <subcommand> ...");
-        println!("       herdr workspace <subcommand> ...");
-        println!("       herdr worktree <subcommand> ...");
-        println!("       herdr tab <subcommand> ...");
-        println!("       herdr notification <subcommand> ...");
-        println!("       herdr agent <subcommand> ...");
-        println!("       herdr pane <subcommand> ...");
-        println!("       herdr session <subcommand> ...");
-        println!("       herdr integration <subcommand> ...");
+        println!("Usage: herdrscreen [options]");
+        println!("       herdrscreen --session <name> [options]");
+        println!("       herdrscreen --machine <label-or-id> <command>");
+        println!("       herdrscreen --remote <ssh-target> [--session <name>]");
+        println!("       herdrscreen session attach <name>");
+        println!("       herdrscreen completion zsh");
+        println!("       herdrscreen update [--handoff]");
+        println!("       herdrscreen channel set <stable|preview>");
+        println!("       herdrscreen machine <subcommand> ...");
+        println!("       herdrscreen server stop");
+        println!("       herdrscreen server reload-config");
+        println!("       herdrscreen api <subcommand> ...");
+        println!("       herdrscreen completion <shell>");
+        println!("       herdrscreen config <subcommand> ...");
+        println!("       herdrscreen channel <subcommand> ...");
+        println!("       herdrscreen workspace <subcommand> ...");
+        println!("       herdrscreen worktree <subcommand> ...");
+        println!("       herdrscreen tab <subcommand> ...");
+        println!("       herdrscreen notification <subcommand> ...");
+        println!("       herdrscreen agent <subcommand> ...");
+        println!("       herdrscreen pane <subcommand> ...");
+        println!("       herdrscreen session <subcommand> ...");
+        println!("       herdrscreen integration <subcommand> ...");
         println!();
         println!("Common commands:");
         for (command, description) in [
-            ("herdr", "Launch or attach to the persistent session"),
+            ("herdrscreen", "Launch or attach to the persistent session"),
             (
-                "herdr status [server|client]",
+                "herdrscreen status [server|client]",
                 "Show local client and running server status",
             ),
-            ("herdr update", "Download and install the latest version"),
-            ("herdr completion zsh", "Generate shell completions for zsh"),
+            ("herdrscreen update", "Download and install the latest version"),
+            ("herdrscreen completion zsh", "Generate shell completions for zsh"),
             (
-                "herdr server stop",
+                "herdrscreen server stop",
                 "Stop the running server via the API socket",
             ),
             (
-                "herdr channel set <stable|preview>",
+                "herdrscreen channel set <stable|preview>",
                 "Choose the stable or preview update channel",
             ),
             (
-                "herdr server reload-config",
+                "herdrscreen server reload-config",
                 "Reload config.toml in the running server",
             ),
             (
-                "herdr config reset-keys",
+                "herdrscreen config reset-keys",
                 "Back up config.toml and remove custom keybindings",
             ),
             (
-                "herdr channel <subcommand>",
+                "herdrscreen channel <subcommand>",
                 "Manage the stable or preview update channel",
             ),
-            ("herdr machine <subcommand>", "Manage saved SSH machines"),
+            ("herdrscreen machine <subcommand>", "Manage saved SSH machines"),
             (
-                "herdr api <subcommand>",
+                "herdrscreen api <subcommand>",
                 "Inspect socket API metadata and live runtime state",
             ),
             (
-                "herdr workspace <subcommand>",
+                "herdrscreen workspace <subcommand>",
                 "Workspace helpers over the socket API",
             ),
             (
-                "herdr worktree <subcommand>",
+                "herdrscreen worktree <subcommand>",
                 "Git worktree helpers over the socket API",
             ),
-            ("herdr tab <subcommand>", "Tab helpers over the socket API"),
+            ("herdrscreen tab <subcommand>", "Tab helpers over the socket API"),
             (
-                "herdr notification <subcommand>",
+                "herdrscreen notification <subcommand>",
                 "Notification helpers over the socket API",
             ),
             (
-                "herdr agent <subcommand>",
+                "herdrscreen agent <subcommand>",
                 "Agent/terminal helpers over the socket API",
             ),
             (
-                "herdr pane <subcommand>",
+                "herdrscreen pane <subcommand>",
                 "Pane control helpers over the socket API",
             ),
             (
-                "herdr session <subcommand>",
+                "herdrscreen session <subcommand>",
                 "Manage named persistent sessions",
             ),
             (
-                "herdr integration <subcommand>",
+                "herdrscreen integration <subcommand>",
                 "Manage built-in agent integrations",
             ),
         ] {
@@ -690,7 +673,7 @@ fn main() -> io::Result<()> {
         }
         println!();
         println!("Advanced commands:");
-        println!("  {:<32} Run as headless server", "herdr server");
+        println!("  {:<32} Run as headless server", "herdrscreen server");
         println!();
         println!("Options:");
         println!("  --session <name>    Use or create a named persistent session");
@@ -715,7 +698,7 @@ fn main() -> io::Result<()> {
 
     if args.iter().any(|a| a == "--version" || a == "-V") {
         platform::begin_cli_output();
-        println!("herdr {}", crate::build_info::version());
+        println!("herdrscreen {}", crate::build_info::version());
         return Ok(());
     }
 
@@ -748,7 +731,7 @@ fn main() -> io::Result<()> {
         let arg_name = arg.split_once('=').map(|(name, _)| name).unwrap_or(arg);
         if arg.starts_with('-') && !known_flags.contains(&arg_name) {
             eprintln!("unknown option: {arg}");
-            eprintln!("run 'herdr --help' for usage");
+            eprintln!("run 'herdrscreen --help' for usage");
             std::process::exit(2);
         }
         if !arg.starts_with('-')
@@ -770,7 +753,7 @@ fn main() -> io::Result<()> {
             .contains(&arg.as_str())
         {
             eprintln!("unknown command: {arg}");
-            eprintln!("run 'herdr --help' for usage");
+            eprintln!("run 'herdrscreen --help' for usage");
             std::process::exit(2);
         }
     }

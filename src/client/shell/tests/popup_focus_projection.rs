@@ -374,7 +374,9 @@ fn pending_popup_suppresses_held_pane_repeats_but_preserves_release() {
 
 #[test]
 fn prefix_input_source_changes_are_client_owned_and_focus_safe() {
-    let mut config = ClientShellConfig::from_config(&Config::default());
+    let mut cfg = Config::default();
+    cfg.keys.prefix = crate::config::BindingConfig::One("ctrl+b".to_owned());
+    let mut config = ClientShellConfig::from_config(&cfg);
     config.switch_ascii_input_source_in_prefix = true;
     let mut state = ClientShellState::new(config);
     state.set_snapshot(Box::new(snapshot()));

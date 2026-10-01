@@ -136,6 +136,7 @@ goto = "prefix+g"
 new_tab = "prefix+c"
 next_tab = "prefix+n"
 previous_tab = "prefix+p"
+last_tab = "prefix+prefix"
 focus_pane_left = "prefix+h"
 navigate_workspace_down = "j"
 navigate_pane_down = "ctrl+j"
@@ -159,6 +160,8 @@ A binding may also be an array when one action needs multiple shortcuts:
 [keys]
 next_tab = ["prefix+n", "ctrl+alt+]"]
 ```
+
+The special binding `prefix+prefix` runs the action when the prefix key is pressed again while prefix mode is active, matching tmux and GNU screen's last-window toggle. For example, with the prefix set to `ctrl+a`, `last_tab = "prefix+prefix"` makes `ctrl+a` `ctrl+a` focus the previously focused tab. Without a bound action, pressing the prefix twice exits prefix mode and sends the literal prefix key to the pane.
 
 Optional actions are unset by default. Bind them with `prefix+` for prefix-mode behavior, or use an explicit modified chord when you intentionally want a direct shortcut. For example, tmux-style one-keystroke pane resizing without entering resize mode:
 

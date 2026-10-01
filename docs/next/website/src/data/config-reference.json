@@ -656,6 +656,12 @@
           "description": "Select the next tab."
         },
         {
+          "key": "keys.last_tab",
+          "type": "keybinding",
+          "default": "unset",
+          "description": "Focus the last focused tab."
+        },
+        {
           "key": "keys.move_tab_previous",
           "type": "keybinding",
           "default": "unset",

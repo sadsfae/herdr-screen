@@ -1,0 +1,21 @@
+# herdrscreen-bin: GNU screen edition of Herdr (static binary from GitHub release)
+# AUR contributors: use `makepkg --printsrcinfo > .SRCINFO` before submitting.
+pkgname=herdrscreen-bin
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="GNU screen edition of the Herdr terminal workspace manager (static binary)"
+arch=('x86_64')
+url="https://github.com/sadsfae/herdrscreen"
+license=('Apache-2.0')
+depends=('openssh' 'git' 'curl')
+provides=('herdrscreen')
+conflicts=('herdrscreen')
+source=("herdrscreen-linux-x86_64::https://github.com/sadsfae/herdrscreen/releases/download/v${pkgver}/herdrscreen-linux-x86_64"
+        "LICENSE::https://raw.githubusercontent.com/sadsfae/herdrscreen/v${pkgver}/LICENSE")
+sha256sums=('__SHA_BINARY__'
+            '__SHA_LICENSE__')
+
+package() {
+  install -Dm755 "$srcdir/herdrscreen-linux-x86_64" "$pkgdir/usr/bin/herdrscreen"
+  install -Dm644 "$srcdir/LICENSE" "$pkgdir/usr/share/licenses/herdrscreen/LICENSE"
+}

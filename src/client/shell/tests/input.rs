@@ -470,7 +470,9 @@ fn pixel_host_reports_use_cells_without_target_pixel_mode_and_release_outside() 
 
 #[test]
 fn shell_targets_unconsumed_input_and_keeps_prefix_local() {
-    let config = ClientShellConfig::from_config(&Config::default());
+    let mut cfg = Config::default();
+    cfg.keys.prefix = crate::config::BindingConfig::One("ctrl+b".to_owned());
+    let config = ClientShellConfig::from_config(&cfg);
     let mut state = ClientShellState::new(config);
     state.set_snapshot(Box::new(snapshot()));
 
@@ -674,4 +676,76 @@ fn every_configured_prefix_enters_prefix_mode() {
         ))]);
         assert_eq!(state.mode, ClientShellMode::Terminal);
     }
+}
+
+#[test]
+fn double_prefix_focuses_last_tab_when_bound() {
+    let mut config = Config::default();
+    config.keys.prefix = crate::config::BindingConfig::One("ctrl+a".to_owned());
+    config.keys.last_tab = crate::config::BindingConfig::One("prefix+prefix".to_owned());
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+
+    let mut initial = snapshot();
+    let mut tab2 = initial.tabs[0].clone();
+    tab2.tab_id = "tab_2".into();
+    tab2.number = 2;
+    tab2.focused = false;
+    initial.tabs.push(tab2);
+    let mut pane2 = initial.panes[0].clone();
+    pane2.pane_id = "pane_2".into();
+    pane2.tab_id = "tab_2".into();
+    pane2.focused = false;
+    initial.panes.push(pane2);
+    state.set_snapshot(Box::new(initial));
+
+    let mut second = *state.snapshot.clone().expect("snapshot");
+    second.revision = 2;
+    second.focused_tab_id = Some("tab_2".into());
+    second.tabs[0].focused = false;
+    second.tabs[1].focused = true;
+    second.panes[0].focused = false;
+    second.panes[1].focused = true;
+    state.set_snapshot(Box::new(second));
+
+    let first = state.handle_raw_events(vec![RawInputEvent::Key(
+        crate::input::TerminalKey::new(KeyCode::Char('a'), KeyModifiers::CONTROL),
+    )]);
+    assert!(first.actions.is_empty());
+    assert_eq!(state.mode, ClientShellMode::Prefix);
+
+    let second_key = state.handle_raw_events(vec![RawInputEvent::Key(
+        crate::input::TerminalKey::new(KeyCode::Char('a'), KeyModifiers::CONTROL),
+    )]);
+    assert_eq!(state.mode, ClientShellMode::Terminal);
+    assert!(matches!(
+        &second_key.actions[..],
+        [ClientShellAction::Endpoint { request, .. }]
+            if matches!(
+                &request.method,
+                crate::api::schema::Method::TabFocus(target) if target.tab_id == "tab_1"
+            )
+    ));
+}
+
+#[test]
+fn double_prefix_without_binding_keeps_passing_literal_prefix_to_pane() {
+    let mut config = Config::default();
+    config.keys.prefix = crate::config::BindingConfig::One("ctrl+a".to_owned());
+    config.keys.last_tab = crate::config::BindingConfig::empty();
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+    state.set_snapshot(Box::new(snapshot()));
+
+    let _ = state.handle_raw_events(vec![RawInputEvent::Key(
+        crate::input::TerminalKey::new(KeyCode::Char('a'), KeyModifiers::CONTROL),
+    )]);
+    assert_eq!(state.mode, ClientShellMode::Prefix);
+
+    let second_key = state.handle_raw_events(vec![RawInputEvent::Key(
+        crate::input::TerminalKey::new(KeyCode::Char('a'), KeyModifiers::CONTROL),
+    )]);
+    assert_eq!(state.mode, ClientShellMode::Terminal);
+    assert!(matches!(
+        &second_key.requests[..],
+        [ClientMessage::ClientShellPaneInput { pane_id, .. }] if pane_id == "pane_1"
+    ));
 }

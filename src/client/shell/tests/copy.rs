@@ -404,7 +404,9 @@ fn selection_edge_drag_requests_scroll_and_timer_continues_it() {
 
 #[test]
 fn keyboard_copy_mode_owns_cursor_selection_copy_and_scroll_restore() {
-    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    let mut config = Config::default();
+    config.keys.prefix = crate::config::BindingConfig::One("ctrl+b".to_owned());
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
     state.config.copy_on_select = false;
     state.set_snapshot(Box::new(snapshot()));
     let mut pane_surface = surface();
@@ -524,8 +526,10 @@ fn keyboard_copy_mode_owns_cursor_selection_copy_and_scroll_restore() {
 #[test]
 fn keyboard_selections_survive_output_and_copy_live_ranges() {
     // Character and linewise selections have distinct anchor/range projections.
+    let mut config = Config::default();
+    config.keys.prefix = crate::config::BindingConfig::One("ctrl+b".to_owned());
     for selection_key in [b"v", b"V"] {
-        let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+        let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
         state.set_snapshot(Box::new(snapshot()));
         let mut pane_surface = surface();
         pane_surface.panes[0].scroll = Some(crate::protocol::PaneSurfaceScrollMetrics {
@@ -576,7 +580,9 @@ fn keyboard_selections_survive_output_and_copy_live_ranges() {
 
 #[test]
 fn empty_keyboard_anchor_keeps_search_fallback_revision_guard() {
-    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    let mut config = Config::default();
+    config.keys.prefix = crate::config::BindingConfig::One("ctrl+b".to_owned());
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
     state.set_snapshot(Box::new(snapshot()));
     let mut pane_surface = surface();
     pane_surface.panes[0].scroll = Some(crate::protocol::PaneSurfaceScrollMetrics {
@@ -615,8 +621,10 @@ fn empty_keyboard_anchor_keeps_search_fallback_revision_guard() {
 
 #[test]
 fn keyboard_selection_does_not_return_after_resize_or_screen_switch() {
+    let mut config = Config::default();
+    config.keys.prefix = crate::config::BindingConfig::One("ctrl+b".to_owned());
     for screen_switch in [false, true] {
-        let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+        let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
         state.set_snapshot(Box::new(snapshot()));
         let mut pane_surface = surface();
         pane_surface.panes[0].scroll = Some(crate::protocol::PaneSurfaceScrollMetrics {

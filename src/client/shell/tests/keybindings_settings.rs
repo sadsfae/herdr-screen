@@ -243,6 +243,7 @@ detach = "prefix+x"
 #[test]
 fn prefix_endpoint_action_uses_public_api_with_stable_ids() {
     let mut config = Config::default();
+    config.keys.prefix = crate::config::BindingConfig::One("ctrl+b".to_owned());
     config.ui.prompt_new_tab_name = false;
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
     state.set_snapshot(Box::new(snapshot()));
@@ -791,7 +792,9 @@ fn help_overlay_restores_released_search_scroll_and_custom_binding_behavior() {
 
 #[test]
 fn resize_mode_reuses_endpoint_resize_and_stays_active_until_done() {
-    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    let mut config = Config::default();
+    config.keys.prefix = crate::config::BindingConfig::One("ctrl+b".to_owned());
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
     state.set_snapshot(Box::new(snapshot()));
     state.set_pane_surface(surface());
 

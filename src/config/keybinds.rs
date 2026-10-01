@@ -11,7 +11,8 @@ use crate::popup_size::PopupSize;
 pub type KeyCombo = (KeyCode, KeyModifiers);
 
 /// Built-in prefix used when `keys.prefix` is unset or invalid.
-pub(crate) const DEFAULT_PREFIX: KeyCombo = (KeyCode::Char('b'), KeyModifiers::CONTROL);
+/// herdrscreen defaults to GNU screen style control+a.
+pub(crate) const DEFAULT_PREFIX: KeyCombo = (KeyCode::Char('a'), KeyModifiers::CONTROL);
 
 #[derive(Debug, Clone)]
 pub struct LiveKeybindConfig {
@@ -101,6 +102,7 @@ impl BindingConfig {
                             .then_some(binding.label)
                     }));
                 }
+                Some(ParsedBinding::RepeatedPrefix) => {}
                 None => {}
             }
         }
@@ -208,6 +210,9 @@ impl ActionKeybinds {
             match parse_binding_string(label) {
                 Some(ParsedBinding::Single(binding)) => bindings.push(binding),
                 Some(ParsedBinding::Range(range)) => bindings.extend(range),
+                Some(ParsedBinding::RepeatedPrefix) => {
+                    return Err(format!("repeated-prefix is not an endpoint binding: {label}"));
+                }
                 None => return Err(format!("invalid endpoint command binding: {label}")),
             }
         }
@@ -225,6 +230,7 @@ impl ActionKeybinds {
             .and_then(|parsed| match parsed {
                 ParsedBinding::Single(binding) => Some(binding),
                 ParsedBinding::Range(_) => None,
+                ParsedBinding::RepeatedPrefix => None,
             })
             .expect("prefix binding should parse");
         Self {
@@ -238,6 +244,7 @@ impl ActionKeybinds {
             .and_then(|parsed| match parsed {
                 ParsedBinding::Single(binding) => Some(binding),
                 ParsedBinding::Range(_) => None,
+                ParsedBinding::RepeatedPrefix => None,
             })
             .expect("direct binding should parse");
         Self {
@@ -373,6 +380,7 @@ pub struct Keybinds {
     pub rename_tab: ActionKeybinds,
     pub previous_tab: ActionKeybinds,
     pub next_tab: ActionKeybinds,
+    pub last_tab: ActionKeybinds,
     pub move_tab_previous: ActionKeybinds,
     pub move_tab_next: ActionKeybinds,
     pub switch_tab: Vec<IndexedKeybind>,
@@ -416,6 +424,9 @@ impl Default for Keybinds {
 enum ParsedBinding {
     Single(ResolvedBinding),
     Range(Vec<ResolvedBinding>),
+    /// `prefix+prefix`: pressing the configured prefix key again. Expanded to
+    /// one Prefix binding per configured prefix key during parsing.
+    RepeatedPrefix,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -556,6 +567,7 @@ impl Config {
             rename_tab: empty_action!(),
             previous_tab: empty_action!(),
             next_tab: empty_action!(),
+            last_tab: empty_action!(),
             move_tab_previous: empty_action!(),
             move_tab_next: empty_action!(),
             switch_tab: Vec::new(),
@@ -694,6 +706,7 @@ impl Config {
             apply_action!(keybinds.rename_tab, rename_tab, source);
             apply_action!(keybinds.previous_tab, previous_tab, source);
             apply_action!(keybinds.next_tab, next_tab, source);
+            apply_action!(keybinds.last_tab, last_tab, source);
             apply_action!(keybinds.move_tab_previous, move_tab_previous, source);
             apply_action!(keybinds.move_tab_next, move_tab_next, source);
             apply_indexed!(
@@ -878,6 +891,30 @@ fn parse_action_bindings(
                 registry.register(&binding, field, source);
                 bindings.push(binding);
             }
+            Some(ParsedBinding::RepeatedPrefix) => {
+                let prefix_combos = registry.prefix_combos.clone();
+                for combo in &prefix_combos {
+                    let binding = ResolvedBinding {
+                        trigger: BindingTrigger::Prefix(*combo),
+                        label: "prefix+prefix".to_string(),
+                    };
+                    if let Some(first_binding) = registry.conflict(&binding) {
+                        if source == BindingSource::Default
+                            && first_binding.source == BindingSource::User
+                        {
+                            continue;
+                        }
+                        let first_field = &first_binding.field;
+                        let diag =
+                            format!("{}: kept {first_field}, disabled {field}", binding.label);
+                        warn!(message = %diag, "config diagnostic");
+                        diagnostics.push(diag);
+                        continue;
+                    }
+                    registry.register(&binding, field, source);
+                    bindings.push(binding);
+                }
+            }
             Some(ParsedBinding::Range(_)) => {
                 let diag = format!("range keybinding is only valid for indexed actions: {field} = {raw:?}; disabling binding");
                 warn!(message = %diag, "config diagnostic");
@@ -914,6 +951,13 @@ fn parse_navigate_bindings(
                 registry.register(&binding, field, source);
                 bindings.push(binding);
             }
+            Some(ParsedBinding::RepeatedPrefix) => {
+                let diag = format!(
+                    "repeated-prefix keybinding is not valid for navigate actions: {field} = {raw:?}; disabling binding"
+                );
+                warn!(message = %diag, "config diagnostic");
+                diagnostics.push(diag);
+            }
             Some(ParsedBinding::Range(_)) => {
                 let diag = format!("range keybinding is only valid for indexed actions: {field} = {raw:?}; disabling binding");
                 warn!(message = %diag, "config diagnostic");
@@ -945,6 +989,13 @@ fn parse_indexed_bindings(
         match parse_binding_string(raw) {
             Some(ParsedBinding::Single(binding)) => {
                 push_indexed_binding(field, binding, registry, diagnostics, source, &mut bindings);
+            }
+            Some(ParsedBinding::RepeatedPrefix) => {
+                let diag = format!(
+                    "repeated-prefix keybinding is not valid for indexed actions: {field} = {raw:?}; disabling binding"
+                );
+                warn!(message = %diag, "config diagnostic");
+                diagnostics.push(diag);
             }
             Some(ParsedBinding::Range(range)) => {
                 for binding in range {
@@ -1152,6 +1203,10 @@ fn parse_binding_string(raw: &str) -> Option<ParsedBinding> {
             })
             .collect();
         return Some(ParsedBinding::Range(bindings));
+    }
+
+    if trigger_prefix && body == "prefix" {
+        return Some(ParsedBinding::RepeatedPrefix);
     }
 
     let combo = parse_key_combo(body)?;
@@ -2461,4 +2516,87 @@ width = "80%"
             .iter()
             .any(|diag| diag.contains("popup size on non-popup custom command")));
     }
+
+    #[test]
+    fn prefix_plus_prefix_expands_to_each_configured_prefix() {
+        let config: Config = toml::from_str(
+            r#"
+[keys]
+prefix = ["ctrl+a", "ctrl+b"]
+last_tab = "prefix+prefix"
+"#,
+        )
+        .unwrap();
+        assert!(config.collect_diagnostics().is_empty());
+        let keybinds = config.keybinds();
+        assert_eq!(keybinds.last_tab.bindings.len(), 2);
+        assert_eq!(
+            keybinds.last_tab.bindings[0].trigger,
+            BindingTrigger::Prefix((KeyCode::Char('a'), KeyModifiers::CONTROL))
+        );
+        assert_eq!(
+            keybinds.last_tab.bindings[1].trigger,
+            BindingTrigger::Prefix((KeyCode::Char('b'), KeyModifiers::CONTROL))
+        );
+        assert!(keybinds
+            .last_tab
+            .bindings
+            .iter()
+            .all(|binding| binding.label == "prefix+prefix"));
+    }
+
+    #[test]
+    fn prefix_plus_prefix_conflicts_are_disabled() {
+        let config: Config = toml::from_str(
+            r#"
+[keys]
+prefix = "ctrl+a"
+last_tab = "prefix+prefix"
+help = "prefix+prefix"
+"#,
+        )
+        .unwrap();
+        let keybinds = config.keybinds();
+        assert_eq!(keybinds.help.bindings.len(), 1);
+        assert!(keybinds.last_tab.bindings.is_empty());
+        assert!(config
+            .collect_diagnostics()
+            .iter()
+            .any(|diag| diag.contains("kept keys.help")
+                && diag.contains("disabled keys.last_tab")));
+    }
+
+    #[test]
+    fn prefix_plus_prefix_is_rejected_for_indexed_bindings() {
+        let config: Config = toml::from_str(
+            r#"
+[keys]
+prefix = "ctrl+a"
+switch_tab = "prefix+prefix"
+"#,
+        )
+        .unwrap();
+        let keybinds = config.keybinds();
+        assert!(keybinds.switch_tab.is_empty());
+        assert!(config
+            .collect_diagnostics()
+            .iter()
+            .any(|diag| diag.contains("repeated-prefix keybinding is not valid for indexed")));
+    }
 }
+
+    #[test]
+    fn herdrscreen_defaults_are_gnu_screen_style() {
+        let config = Config::default();
+        assert_eq!(
+            DEFAULT_PREFIX,
+            (KeyCode::Char('a'), KeyModifiers::CONTROL)
+        );
+        assert_eq!(config.keys.prefix.values(), vec!["ctrl+a"]);
+        assert_eq!(config.keys.last_tab.values(), vec!["prefix+prefix"]);
+        let keybinds = config.keybinds();
+        assert_eq!(keybinds.last_tab.bindings.len(), 1);
+        assert_eq!(keybinds.last_tab.bindings[0].label, "prefix+prefix");
+        assert!(!config.update.version_check);
+        assert!(!config.update.manifest_check);
+    }

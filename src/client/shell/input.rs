@@ -585,6 +585,16 @@ impl ClientShellState {
                     ClientShellMode::Terminal
                 };
                 if self.config.keybinds.matches_prefix(key) {
+                    if let Some(binding) = crate::input::resolve_exact_binding(
+                        &self.config.keybinds.keybinds,
+                        key,
+                        crate::input::KeybindDispatch::Prefix,
+                    ) {
+                        self.mode = return_mode;
+                        outcome.repaint = true;
+                        self.record_binding(binding, outcome);
+                        return None;
+                    }
                     self.mode = return_mode;
                     outcome.repaint = true;
                     return self.focused_pane_id().map(ClientInputTarget::Pane);

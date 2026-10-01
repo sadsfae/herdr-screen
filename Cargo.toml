@@ -1,11 +1,11 @@
 [package]
-name = "herdr"
+name = "herdrscreen"
 version = "0.9.3"
 edition = "2021"
 build = "build.rs"
-description = "terminal workspace manager for AI coding agents"
+description = "GNU screen edition of the Herdr terminal workspace manager for AI coding agents"
 license = "Apache-2.0"
-repository = "https://github.com/herdrdev/herdr"
+repository = "https://github.com/sadsfae/herdrscreen"
 homepage = "https://herdr.dev"
 keywords = ["terminal", "tui", "ai", "agents", "multiplexer"]
 categories = ["command-line-utilities"]

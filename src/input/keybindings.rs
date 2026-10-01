@@ -36,6 +36,7 @@ pub(crate) enum KeybindAction {
     RenameTab,
     PreviousTab,
     NextTab,
+    LastTab,
     MoveTabPrevious,
     MoveTabNext,
     CloseTab,
@@ -116,6 +117,7 @@ pub(crate) fn resolve_non_indexed_action(
         (&keybinds.rename_tab, KeybindAction::RenameTab),
         (&keybinds.previous_tab, KeybindAction::PreviousTab),
         (&keybinds.next_tab, KeybindAction::NextTab),
+        (&keybinds.last_tab, KeybindAction::LastTab),
         (&keybinds.move_tab_previous, KeybindAction::MoveTabPrevious),
         (&keybinds.move_tab_next, KeybindAction::MoveTabNext),
         (&keybinds.close_tab, KeybindAction::CloseTab),
@@ -220,7 +222,7 @@ pub(crate) fn resolve_indexed_action(
     None
 }
 
-fn resolve_exact_binding(
+pub(crate) fn resolve_exact_binding(
     keybinds: &Keybinds,
     key: &TerminalKey,
     dispatch: KeybindDispatch,
@@ -330,5 +332,43 @@ mod tests {
             resolve_prefix_binding(&keybinds, &key),
             Some(KeybindMatch::Action(KeybindAction::Help))
         ));
+    }
+
+    #[test]
+    fn repeated_prefix_resolves_to_bound_action() {
+        let config: crate::config::Config = toml::from_str(
+            "[keys]\nprefix = \"ctrl+a\"\nlast_tab = \"prefix+prefix\"\n",
+        )
+        .unwrap();
+        assert!(config.collect_diagnostics().is_empty());
+        let keybinds = config.keybinds();
+
+        let prefix_key = TerminalKey::new(KeyCode::Char('a'), KeyModifiers::CONTROL);
+        assert!(matches!(
+            resolve_prefix_binding(&keybinds, &prefix_key),
+            Some(KeybindMatch::Action(KeybindAction::LastTab))
+        ));
+        assert!(matches!(
+            resolve_exact_binding(&keybinds, &prefix_key, KeybindDispatch::Prefix),
+            Some(KeybindMatch::Action(KeybindAction::LastTab))
+        ));
+    }
+
+    #[test]
+    fn repeated_prefix_without_binding_stays_pass_through() {
+        let keybinds = Keybinds::default();
+        let prefix_key = TerminalKey::new(KeyCode::Char('b'), KeyModifiers::CONTROL);
+        assert!(resolve_exact_binding(&keybinds, &prefix_key, KeybindDispatch::Prefix).is_none());
+    }
+
+    #[test]
+    fn repeated_prefix_ignores_generated_character_fallback() {
+        let config: crate::config::Config = toml::from_str(
+            "[keys]\nprefix = \"ctrl+a\"\nhelp = \"prefix+a\"\n",
+        )
+        .unwrap();
+        let keybinds = config.keybinds();
+        let prefix_key = TerminalKey::new(KeyCode::Char('a'), KeyModifiers::CONTROL);
+        assert!(resolve_exact_binding(&keybinds, &prefix_key, KeybindDispatch::Prefix).is_none());
     }
 }

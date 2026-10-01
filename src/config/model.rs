@@ -40,8 +40,10 @@ impl Default for UpdateConfig {
     fn default() -> Self {
         Self {
             channel: default_update_channel(),
-            version_check: true,
-            manifest_check: true,
+            // herdrscreen ships via packages; self-update and the upstream
+            // manifest checks stay off by default.
+            version_check: false,
+            manifest_check: false,
         }
     }
 }
@@ -395,6 +397,8 @@ pub struct KeysConfig {
     pub previous_tab: BindingConfig,
     /// Select the next tab. Default: "prefix+n".
     pub next_tab: BindingConfig,
+    /// Focus the last focused tab, like screen's C-a C-a. Unset by default.
+    pub last_tab: BindingConfig,
     /// Move the active tab one position toward the front. Unset by default.
     pub move_tab_previous: BindingConfig,
     /// Move the active tab one position toward the back. Unset by default.
@@ -532,6 +536,8 @@ pub(crate) struct KeysConfigOverlay {
     previous_tab: Option<BindingConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     next_tab: Option<BindingConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_tab: Option<BindingConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     move_tab_previous: Option<BindingConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -673,6 +679,7 @@ impl<'de> Deserialize<'de> for KeysConfig {
         apply_field!(rename_tab);
         apply_field!(previous_tab);
         apply_field!(next_tab);
+        apply_field!(last_tab);
         apply_field!(move_tab_previous);
         apply_field!(move_tab_next);
         apply_field!(switch_tab);
@@ -778,6 +785,7 @@ impl KeysConfig {
         copy_effective_action_field!(rename_tab, keybinds.rename_tab);
         copy_effective_action_field!(previous_tab, keybinds.previous_tab);
         copy_effective_action_field!(next_tab, keybinds.next_tab);
+        copy_effective_action_field!(last_tab, keybinds.last_tab);
         copy_effective_action_field!(move_tab_previous, keybinds.move_tab_previous);
         copy_effective_action_field!(move_tab_next, keybinds.move_tab_next);
         copy_effective_indexed_field!(switch_tab, keybinds.switch_tab);
@@ -1117,7 +1125,7 @@ pub struct ExperimentalConfig {
 impl Default for KeysConfig {
     fn default() -> Self {
         Self {
-            prefix: BindingConfig::one("ctrl+b"),
+            prefix: BindingConfig::one("ctrl+a"),
             help: BindingConfig::one("prefix+?"),
             settings: BindingConfig::one("prefix+s"),
             new_workspace: BindingConfig::one("prefix+shift+n"),
@@ -1147,6 +1155,7 @@ impl Default for KeysConfig {
             rename_tab: BindingConfig::one("prefix+shift+t"),
             previous_tab: BindingConfig::one("prefix+p"),
             next_tab: BindingConfig::one("prefix+n"),
+            last_tab: BindingConfig::one("prefix+prefix"),
             move_tab_previous: BindingConfig::empty(),
             move_tab_next: BindingConfig::empty(),
             switch_tab: BindingConfig::one("prefix+1..9"),
@@ -1333,8 +1342,9 @@ mod tests {
     fn update_config_defaults_and_parses() {
         let default_config = Config::default();
         assert_eq!(default_config.update.channel, default_update_channel());
-        assert!(default_config.update.version_check);
-        assert!(default_config.update.manifest_check);
+        // herdrscreen ships via packages; self-update checks are off by default.
+        assert!(!default_config.update.version_check);
+        assert!(!default_config.update.manifest_check);
 
         let toml = r#"
 [update]
