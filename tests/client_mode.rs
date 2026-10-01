@@ -357,7 +357,7 @@ fn direct_attach_initial_mouse_capture_follows_config() {
         .expect("direct attach master")
         .take_writer()
         .expect("direct attach PTY writer")
-        .write_all(b"\x02q")
+        .write_all(b"\x01q")
         .expect("detach direct attach client");
     let restore_output = drain_until_client_exits(&mut attach, &output, restore_watermark);
     assert!(
@@ -1330,7 +1330,7 @@ fn client_shell_detaches_restores_and_freshly_reattaches_to_current_state() {
         .expect("first client shell PTY")
         .take_writer()
         .expect("first client shell writer")
-        .write_all(b"\x02q")
+        .write_all(b"\x01q")
         .expect("detach first client shell");
     let detach_output = drain_until_client_exits(&mut client_a, &output_a, detach_watermark);
     assert!(
