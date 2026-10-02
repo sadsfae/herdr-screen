@@ -314,7 +314,9 @@ fn startup_onboarding_is_client_rendered_and_modal() {
         .join("\n");
     assert!(text.contains("terminal workspace manager for coding agents"));
     assert!(text.contains("this is a mouse-first terminal"));
-    assert!(text.contains("ctrl+b enters prefix mode"));
+    assert!(text.contains("ctrl+a enters prefix mode"));
+    assert!(text.contains("screen  ctrl+a"));
+    assert!(text.contains("tmux    ctrl+b"));
     assert!(text.contains("install optional agent integrations"));
     assert_eq!(state.hits.overlay_primary.width, 12);
 
@@ -452,6 +454,59 @@ fn onboarding_completion_persists_and_opens_endpoint_integrations() {
     std::fs::remove_dir(&unreadable_path).expect("remove unreadable config path");
 
     std::fs::remove_file(path).expect("remove onboarding config");
+}
+
+#[test]
+fn onboarding_binding_toggle_persists_prefix_only_when_non_default() {
+    let temp_path = || {
+        std::env::temp_dir().join(format!(
+            "herdr-client-onboarding-binding-{}-{}.toml",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ))
+    };
+
+    // Toggle to tmux (ctrl+b): pressing 's' switches the selection, then Enter
+    // persists keys.prefix = "ctrl+b".
+    let path = temp_path();
+    std::fs::write(&path, "[terminal]\ndefault_shell = \"fish\"\n").expect("write config");
+    let mut config =
+        ClientShellConfig::from_config(&Config::default()).with_startup_onboarding(true);
+    config.local_config_path = path.clone();
+    let mut state = ClientShellState::new(config);
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    assert_eq!(state.onboarding_binding, OnboardingBinding::Screen);
+    let toggled = state.handle_input_bytes(b"s");
+    assert!(toggled.repaint);
+    assert_eq!(state.onboarding_binding, OnboardingBinding::Tmux);
+    state.handle_input_bytes(b"\r");
+    let persisted = std::fs::read_to_string(&path).expect("read config");
+    assert!(
+        persisted.contains("[keys]") && persisted.contains("prefix = \"ctrl+b\""),
+        "expected prefix ctrl+b, got: {persisted}"
+    );
+    std::fs::remove_file(path).expect("remove config");
+
+    // Default screen does NOT write keys.prefix (no explicit choice made).
+    let path = temp_path();
+    std::fs::write(&path, "[terminal]\ndefault_shell = \"fish\"\n").expect("write config");
+    let mut config =
+        ClientShellConfig::from_config(&Config::default()).with_startup_onboarding(true);
+    config.local_config_path = path.clone();
+    let mut state = ClientShellState::new(config);
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    state.handle_input_bytes(b"\r");
+    let persisted = std::fs::read_to_string(&path).expect("read config");
+    assert!(
+        !persisted.contains("prefix ="),
+        "screen default should not write keys.prefix, got: {persisted}"
+    );
+    std::fs::remove_file(path).expect("remove config");
 }
 
 #[test]

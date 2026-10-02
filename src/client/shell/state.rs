@@ -594,6 +594,36 @@ pub(super) struct ClientConfirmCloseOverlay {
     pub(super) detail: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(super) enum OnboardingBinding {
+    #[default]
+    Screen,
+    Tmux,
+}
+
+impl OnboardingBinding {
+    pub(super) fn prefix_label(self) -> &'static str {
+        match self {
+            Self::Screen => "ctrl+a",
+            Self::Tmux => "ctrl+b",
+        }
+    }
+
+    pub(super) fn next(self) -> Self {
+        match self {
+            Self::Screen => Self::Tmux,
+            Self::Tmux => Self::Screen,
+        }
+    }
+
+    pub(super) fn prefix_key(self) -> &'static str {
+        match self {
+            Self::Screen => "ctrl+a",
+            Self::Tmux => "ctrl+b",
+        }
+    }
+}
+
 #[derive(Debug)]
 pub(super) enum ClientShellOverlay {
     Onboarding,
@@ -911,6 +941,7 @@ pub(crate) struct ClientShellState {
     pub(super) pending_workspace_highlight: Option<PendingWorkspaceHighlight>,
     pub(super) reveal_navigation_workspace: bool,
     pub(super) overlay: Option<ClientShellOverlay>,
+    pub(super) onboarding_binding: OnboardingBinding,
     pub(super) previous_pane_id: Option<String>,
     pub(super) previous_tab_id: Option<String>,
     pub(super) pane_mouse_gesture: Option<ClientPaneMouseGesture>,
@@ -1077,6 +1108,7 @@ impl ClientShellState {
             pending_workspace_highlight: None,
             reveal_navigation_workspace: false,
             overlay,
+            onboarding_binding: OnboardingBinding::default(),
             previous_pane_id: None,
             previous_tab_id: None,
             pane_mouse_gesture: None,
