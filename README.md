@@ -37,6 +37,8 @@ agents. It keeps Herdr's engine and adds:
   FreeBSD pkg.
 - Config and session state stay in Herdr's usual paths (`~/.config/herdr`,
   `~/.local/state/herdr`), so herdrscreen is a drop-in replacement for existing Herdr setups.
+- `herdrscreen logs <service> [more...]` opens a dedicated logs workspace with one pane per
+  service, each tailing `journalctl -fu <svc>` (use `--file <path>` to tail a log file).
 - No curl to bash: native packages for Red Hat, Debian, Arch, Slackware, and FreeBSD.
 
 [Install](#install) · [RPM](#rpm) · [Deb](#deb) · [AUR](#aur) · [Slackware](#slackware) · [FreeBSD](#freebsd)
