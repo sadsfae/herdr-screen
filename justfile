@@ -142,7 +142,10 @@ release-docs-check:
             exit 1; \
         fi; \
     done
-    @test -d docs/next/website/src/content/docs
+    @test -f docs/README.md
+    @test -f docs/cli-reference.md
+    @test -f docs/config-reference.md
+    @test -f docs/next/website/src/data/config-reference.json
 
 # Validate release docs, render scaling, and end-to-end CPU before release preparation
 pre-release-check:
