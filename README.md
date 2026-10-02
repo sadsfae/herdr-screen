@@ -43,7 +43,9 @@ agents. It keeps Herdr's engine and adds:
 
 [About](#about)
 
-[Upstream herdr Docs](#upstream-herdr-docs)
+[Quick Start Usage](#quick-start-usage)
+
+[Docs](#docs)
 
 Licensing and attribution: Apache-2.0. See [LICENSE](LICENSE), [NOTICE](NOTICE), and
 [Code of Conduct](CODE_OF_CONDUCT.md).
@@ -134,6 +136,60 @@ run your agents, split panes, walk away. `ctrl+a q` detaches, `herdrscreen` reat
 - **plugins** — extend panes and workflows. [browse the marketplace →](https://herdr.dev/plugins/)
 - **one rust binary, no electron** — runs in whatever terminal you already use.
 
-## Upstream herdr Docs
+## Quick Start Usage
+
+The most common tasks, in roughly the order you'll reach for them.
+
+### Create a workspace and start work
+
+```bash
+herdrscreen workspace create                    # new empty workspace
+herdrscreen workspace create --label "api" --cwd ~/src/api
+```
+
+A workspace holds a set of tabs and panes. `herdrscreen` (no args) launches or
+reattaches to the persistent session.
+
+### Remove a workspace
+
+```bash
+herdrscreen workspace list                         # find the id
+herdrscreen workspace close <workspace_id>         # close it and free its panes
+```
+
+### Define and open a log watcher workspace
+
+Log watchers are defined in **`~/.config/herdr/logs-services.toml`** (one
+`"name" = "command"` entry per watcher). Reference definitions for `nginx`,
+`postgres`, `ssh`, and `firewall` are seeded automatically. Override or add
+your own:
+
+```bash
+herdrscreen logs-define myapp tail -F /var/log/myapp.log
+herdrscreen logs-define nginx sudo journalctl -fu nginx -n 100
+herdrscreen logs-define list                     # show all definitions
+```
+
+Open a dedicated logs workspace with one pane per watcher:
+
+```bash
+herdrscreen logs nginx postgres                  # tails each in its own pane
+herdrscreen logs --file /var/log/app.log         # tail a file path directly
+```
+
+### Split panes vertical or horizontal, and revert
+
+`ctrl+a v` splits vertically (left/right), `ctrl+a -` splits horizontally
+(top/bottom). To collapse a split back to one pane, close the unwanted panes
+with `ctrl+a x` (close pane) or `ctrl+a X` (close tab). `ctrl+a r` enters
+resize mode to adjust a split. See `herdrscreen pane --help` for the CLI
+equivalents.
+
+### Window list
+
+`ctrl+a "` shows every tab across every workspace, grouped under its workspace
+header. Headers are collapsible (`▼`/`▶`), and `/` filters tab titles.
+
+## Docs
 
 everything lives at [herdr.dev/docs](https://herdr.dev/docs/): [quick start](https://herdr.dev/docs/quick-start/) · [concepts](https://herdr.dev/docs/concepts/) · [supported agents](https://herdr.dev/docs/agents/) · [keyboard](https://herdr.dev/docs/keyboard/) · [configuration](https://herdr.dev/docs/configuration/) · [session state](https://herdr.dev/docs/session-state/) · [connecting machines](https://herdr.dev/docs/connecting-machines/) · [remote](https://herdr.dev/docs/persistence-remote/) · [integrations](https://herdr.dev/docs/integrations/) · [plugins](https://herdr.dev/docs/plugins/) · [socket api](https://herdr.dev/docs/socket-api/)
