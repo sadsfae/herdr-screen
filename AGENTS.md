@@ -204,7 +204,11 @@ When updating libghostty-vt, check every active patch in `vendor/libghostty-vt.p
 
 `skills/herdr/SKILL.md` tracks the latest stable Herdr release because the unversioned `npx skills add` command installs it from `master`. Do not update this file in feature or preview work. Review and update it only during stable release preparation, and include the change in the release commit with the `Cargo.toml` version bump. Preview builds keep the latest stable skill.
 
-Unreleased docs live in `docs/next/website/src/content/docs/`. Update those when a user-facing change needs docs before the next release. They are committed drafts but are never production website input. `docs/next/README.md` stages root README changes. `docs/next/CHANGELOG.md` is curated during stable release preparation, not maintained by normal feature and fix work.
+User-facing reference docs live in `docs/` (plain markdown: `docs/cli-reference.md`,
+`docs/config-reference.md`, indexed by `docs/README.md`). Update those when a
+user-facing change needs docs before the next release. `docs/next/README.md`
+stages root README changes. `docs/next/CHANGELOG.md` is curated during stable
+release preparation, not maintained by normal feature and fix work.
 
 The docs root and changelog are the single source for this fork's documentation; there are no separate preview or versioned doc trees.
 
