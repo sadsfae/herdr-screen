@@ -9,7 +9,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-VERSION="${VERSION:-$(sed -n 's/^version = \"\(.*\)\"/\1/p' Cargo.toml)}"
+VERSION="${VERSION:-$(head -1 RELEASE_VERSION | tr -d '[:space:]')}"
 REPO="https://github.com/sadsfae/herdrscreen"
 DIST="dist"
 ZIG="${ZIG:-/tmp/zig-x86_64-linux-0.16.0/zig}"

@@ -2,6 +2,10 @@
 
 pub const BASE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// The fork's release version (from RELEASE_VERSION, repo root), separate from
+/// the upstream runtime version that feeds plugin compatibility checks.
+pub const RELEASE_VERSION: &str = env!("HERDR_RELEASE_VERSION");
+
 pub fn channel() -> &'static str {
     non_empty(option_env!("HERDR_BUILD_CHANNEL")).unwrap_or("stable")
 }

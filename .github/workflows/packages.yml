@@ -121,9 +121,10 @@ jobs:
           files: dist/*
 
       # One release concept: a fresh release per main push. Tag each with the
-      # Cargo.toml version plus the commit SHA so every push is distinct; the
-      # GitHub `latest` release then always points at the newest main build.
-      # (A tagged v* push still becomes a formal snapshot release above.)
+      # fork release version (RELEASE_VERSION) plus the commit SHA so every push
+      # is distinct; the GitHub `latest` release then always points at the
+      # newest main build. (A tagged v* push still becomes a formal snapshot
+      # release above.)
       - name: Publish main-branch release
         if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
         env:
