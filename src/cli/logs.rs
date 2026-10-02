@@ -120,10 +120,13 @@ pub(super) fn run_logs_command(args: &[String]) -> std::io::Result<i32> {
 
 fn tail_command(target: &str, file_mode: bool) -> String {
     if file_mode {
-        format!("tail -n 100 -F {target}")
-    } else {
-        format!("sudo journalctl -fu {target} -n 100")
+        return format!("tail -n 100 -F {target}");
     }
+    // A defined log service wins over the default systemd-unit assumption.
+    if let Some(command) = super::logs_define::defined_command(target) {
+        return command;
+    }
+    format!("sudo journalctl -fu {target} -n 100")
 }
 
 fn print_logs_help() {

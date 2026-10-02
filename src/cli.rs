@@ -28,6 +28,7 @@ mod completion;
 mod integration;
 mod layout;
 mod logs;
+mod logs_define;
 mod machine;
 mod notification;
 mod pane;
@@ -124,6 +125,7 @@ pub fn maybe_run(args: &[String]) -> std::io::Result<CommandOutcome> {
         "machine" => machine::run_machine_command(&args[2..])?,
         "layout" => layout::run_layout_command(&args[2..])?,
         "logs" => logs::run_logs_command(&args[2..])?,
+        "logs-define" => logs_define::run_logs_define_command(&args[2..])?,
         "workspace" => workspace::run_workspace_command(&args[2..])?,
         "worktree" => worktree::run_worktree_command(&args[2..])?,
         "tab" => tab::run_tab_command(&args[2..])?,
