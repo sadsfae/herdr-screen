@@ -44,6 +44,7 @@ pub(crate) fn render_client_overlay(
     active_endpoint_id: &ClientEndpointId,
     k: &LiveKeybindConfig,
     p: &Palette,
+    onboarding_binding: OnboardingBinding,
 ) -> Option<OverlayRender> {
     if !matches!(
         o,
@@ -60,7 +61,7 @@ pub(crate) fn render_client_overlay(
         }
     }
     match o {
-        ClientShellOverlay::Onboarding => render_onboarding_overlay(b, p),
+        ClientShellOverlay::Onboarding => render_onboarding_overlay(b, p, onboarding_binding),
         ClientShellOverlay::ProductAnnouncement(v) => render_product_announcement_overlay(b, v, p),
         ClientShellOverlay::ReleaseNotes(v) => {
             render_release_notes_overlay(b, v, &s.update_install_command, p)
@@ -687,7 +688,11 @@ fn render_product_announcement_overlay(
     })
 }
 
-fn render_onboarding_overlay(b: &mut Buffer, p: &Palette) -> Option<OverlayRender> {
+fn render_onboarding_overlay(
+    b: &mut Buffer,
+    p: &Palette,
+    binding: OnboardingBinding,
+) -> Option<OverlayRender> {
     let outer = popup(b.area, 64, 16)?;
     let inner = panel(b, outer, p.accent, p.panel_bg)?;
     if inner.height < 11 {
@@ -738,7 +743,7 @@ fn render_onboarding_overlay(b: &mut Buffer, p: &Palette) -> Option<OverlayRende
     let mut key_x = content.x;
     for (value, style) in [
         ("  ", base),
-        (crate::ui::ONBOARDING_PREFIX_LABEL, accent),
+        (binding.prefix_label(), accent),
         (crate::ui::ONBOARDING_PREFIX_SUFFIX, text),
         (crate::ui::ONBOARDING_HELP_LABEL, accent),
         (crate::ui::ONBOARDING_HELP_SUFFIX, text),
@@ -754,6 +759,34 @@ fn render_onboarding_overlay(b: &mut Buffer, p: &Palette) -> Option<OverlayRende
         );
         key_x = key_x.saturating_add(width);
     }
+    let choice_y = content.y.saturating_add(3);
+    let screen_label = if binding == OnboardingBinding::Screen {
+        "● screen  ctrl+a"
+    } else {
+        "○ screen  ctrl+a"
+    };
+    let tmux_label = if binding == OnboardingBinding::Tmux {
+        "● tmux    ctrl+b"
+    } else {
+        "○ tmux    ctrl+b"
+    };
+    put_text(
+        b,
+        content.x,
+        choice_y,
+        content.right().saturating_sub(content.x),
+        "  prefix: ",
+        text,
+    );
+    let labeled = format!(" {screen_label}   {tmux_label}");
+    put_text(
+        b,
+        content.x.saturating_add(display_width("  prefix: ")),
+        choice_y,
+        content.right().saturating_sub(content.x),
+        &labeled,
+        text,
+    );
     put_text(
         b,
         content.x,

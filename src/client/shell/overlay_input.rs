@@ -185,6 +185,22 @@ impl ClientShellState {
         ) {
             self.set_local_config_diagnostic(Some(error));
         }
+        if self.onboarding_binding != OnboardingBinding::default() {
+            if let Err(error) = crate::config::update_file_at(
+                &self.config.local_config_path,
+                "onboarding binding",
+                |content| {
+                    crate::config::upsert_section_value(
+                        content,
+                        "keys",
+                        "prefix",
+                        &format!("\"{}\"", self.onboarding_binding.prefix_key()),
+                    )
+                },
+            ) {
+                self.set_local_config_diagnostic(Some(error));
+            }
+        }
         self.config.startup_onboarding = false;
         self.open_settings_overlay();
         self.select_settings_section(ClientSettingsSection::Integrations, outcome);
@@ -560,11 +576,15 @@ impl ClientShellState {
         use crossterm::event::KeyModifiers;
 
         if matches!(self.overlay, Some(ClientShellOverlay::Onboarding)) {
-            if matches!(
-                key.code,
-                KeyCode::Enter | KeyCode::Right | KeyCode::Char('l')
-            ) {
-                self.complete_onboarding(outcome);
+            match key.code {
+                KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') => {
+                    self.complete_onboarding(outcome);
+                }
+                KeyCode::Tab | KeyCode::Left | KeyCode::Char('h') | KeyCode::Char('s') => {
+                    self.onboarding_binding = self.onboarding_binding.next();
+                    outcome.repaint = true;
+                }
+                _ => {}
             }
             return;
         }
