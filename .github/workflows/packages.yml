@@ -89,7 +89,11 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
             echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
           else
-            echo "value=0.1.0" >> "$GITHUB_OUTPUT"
+            # Main-push builds carry the fork release version (bumped past the
+            # latest tagged release) from RELEASE_VERSION, so install docs and
+            # the `latest` release stay aligned while the runtime version in
+            # Cargo.toml remains independent for plugin compatibility.
+            echo "value=$(head -1 RELEASE_VERSION | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build artifacts
@@ -116,22 +120,24 @@ jobs:
           update_release: true
           files: dist/*
 
-      - name: Publish nightly release
+      # One release concept: a fresh release per main push. Tag each with the
+      # Cargo.toml version plus the commit SHA so every push is distinct; the
+      # GitHub `latest` release then always points at the newest main build.
+      # (A tagged v* push still becomes a formal snapshot release above.)
+      - name: Publish main-branch release
         if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view nightly --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
-            gh release create nightly --repo "$GITHUB_REPOSITORY" --prerelease \
-              --title "nightly" --notes "Built from $GITHUB_SHA"
-          for asset in $(gh release view nightly --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name'); do
-            gh release delete-asset nightly "$asset" --repo "$GITHUB_REPOSITORY" --yes
-          done
-          gh release upload nightly dist/* --repo "$GITHUB_REPOSITORY" --clobber
+          version="${{ steps.version.outputs.value }}"
+          tag="v${version}-${GITHUB_SHA::7}"
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
+            --title "$tag" --notes "Built from ${GITHUB_SHA::7}" dist/*
 
-  # Keep the README install commands pointing at the released version.
+  # Keep the README install commands pointing at the released version. Runs on
+  # every main push and every tag push so install docs always target the newest
+  # release. Reads the version from RELEASE_VERSION (the fork release cadence).
   sync-readme:
-    if: startsWith(github.ref, 'refs/tags/')
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -139,9 +145,10 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: main
+          persist-credentials: true
       - name: Pin README and push
         run: |
-          python3 scripts/sync-readme-version.py "$GITHUB_REF_NAME"
+          python3 scripts/sync-readme-version.py
           if git diff --quiet README.md; then
             echo "README already current"
             exit 0
@@ -149,5 +156,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add README.md
-          git commit -m "docs: pin install commands to $GITHUB_REF_NAME"
-          git push
+          git commit -m "docs: pin install commands to latest release"
+          git push origin main
