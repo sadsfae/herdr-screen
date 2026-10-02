@@ -46,6 +46,9 @@ pub(super) fn command() -> Command {
         .subcommand(terminal_command())
         .subcommand(session_command())
         .subcommand(integration_command())
+        .subcommand(logs_command())
+        .subcommand(logs_define_command())
+        .subcommand(layout_command())
         .subcommand(plugin_command());
     configure_help(command, 0)
 }
@@ -153,6 +156,59 @@ fn channel_command() -> Command {
                     .required(true)
                     .value_parser(["stable", "preview"]),
             ),
+        )
+}
+
+fn logs_command() -> Command {
+    Command::new("logs")
+        .about("Open a workspace tailing service logs or files")
+        .arg(flag("file").help("Tail a file path instead of a systemd unit"))
+        .arg(flag("no-focus").help("Do not focus the new logs workspace"))
+        .arg(
+            required("service", "SERVICE_OR_PATH")
+                .num_args(1..)
+                .help("Service name (systemd) or file path via --file"),
+        )
+}
+
+fn logs_define_command() -> Command {
+    Command::new("logs-define")
+        .about("Define named log watchers in logs-services.toml")
+        .subcommand(Command::new("list").about("List all defined log watchers"))
+        .subcommand(
+            Command::new("remove")
+                .about("Remove a defined log watcher")
+                .arg(required("name", "SERVICE_NAME")),
+        )
+        .arg(
+            Arg::new("name")
+                .value_name("SERVICE_NAME")
+                .help("Service name to define"),
+        )
+        .arg(
+            Arg::new("target")
+                .value_name("PATH_OR_COMMAND")
+                .help("Path or command to tail"),
+        )
+}
+
+fn layout_command() -> Command {
+    Command::new("layout")
+        .about("Export or apply a workspace/tab layout as a portable JSON template")
+        .subcommand(
+            Command::new("export")
+                .about("Write the current layout as a portable JSON description")
+                .arg(option("file", "PATH").help("Write to a file instead of stdout"))
+                .arg(option("tab", "TAB_ID").help("Export just this tab"))
+                .arg(option("pane", "PANE_ID").help("Export just this pane")),
+        )
+        .subcommand(
+            Command::new("apply")
+                .about("Rebuild a layout from an exported JSON file")
+                .arg(required("file", "PATH").value_hint(ValueHint::AnyPath))
+                .arg(option("workspace", "WORKSPACE_ID").help("Replace this workspace"))
+                .arg(option("tab-label", "TEXT").help("Label the new tab"))
+                .arg(flag("focus").help("Focus the applied layout")),
         )
 }
 

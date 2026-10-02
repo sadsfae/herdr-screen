@@ -680,6 +680,18 @@ fn main() -> io::Result<()> {
                 "herdrscreen integration <subcommand>",
                 "Manage built-in agent integrations",
             ),
+            (
+                "herdrscreen logs <service> [more...]",
+                "Open a logs workspace tailing services (--file for a log file)",
+            ),
+            (
+                "herdrscreen logs-define <name> <command>",
+                "Define named log watchers in logs-services.toml",
+            ),
+            (
+                "herdrscreen layout export|apply",
+                "Export a layout as JSON or reload it as a template",
+            ),
         ] {
             println!("  {command:<32} {description}");
         }

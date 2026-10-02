@@ -17,6 +17,10 @@ agents. It keeps Herdr's engine and adds:
 
 ## Features
 
+herdrscreen is Herdr plus a GNU screen workstyle. The engine, socket API, and
+agent model are upstream Herdr; what this fork adds is the screen-style
+ergonomics and infra tooling. In short:
+
 - GNU screen keybindings by default: prefix is `ctrl+a` (set `prefix = "ctrl+b"` for the
   tmux style)
   - `ctrl+a ctrl+a` toggles back to the last focused tab (`keys.last_tab = "prefix+prefix"`)
@@ -39,8 +43,8 @@ agents. It keeps Herdr's engine and adds:
   `~/.local/state/herdr`), so herdrscreen is a drop-in replacement for existing Herdr setups.
 - `herdrscreen logs <service> [more...]` opens a dedicated logs workspace with one pane per
   service, each tailing `journalctl -fu <svc>` (use `--file <path>` to tail a log file).
-  Define named watchers in `~/.config/herdr/logs-services.toml` (or via
-  `herdrscreen logs-define <name> <command>`); `logs` uses them when the name matches.
+  Define named watchers in `logs-services.toml` (or via `herdrscreen logs-define
+  <name> <command>`) so a name tails an arbitrary command or file instead of a systemd unit.
 - `herdrscreen layout export [--file layout.json]` writes a workspace/tab layout as a portable
   JSON description; `herdrscreen layout apply <file>` reloads it into a new tab or workspace,
   so you can reuse a layout as a template on another client or machine.
