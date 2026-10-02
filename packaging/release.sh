@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# Build all herdrscreen v0.1.0 release artifacts into ./dist:
+# Build all herdrscreen release artifacts into ./dist. The version comes from
+# Cargo.toml unless VERSION is set explicitly (the packages workflow passes it).
 #   - herdrscreen-linux-x86_64          (musl static-pie binary)
-#   - herdrscreen-0.1.0-1.el8.x86_64.rpm  (+ el9, el10, fc42, fc43, fc44)
-#   - herdrscreen_0.1.0_amd64.deb
-#   - herdrscreen-0.1.0.tar.gz          (source snapshot of HEAD)
+#   - herdrscreen-<version>-1.el8.x86_64.rpm  (+ el9, el10, fc42, fc43, fc44)
+#   - herdrscreen_<version>_amd64.deb
+#   - herdrscreen-<version>.tar.gz      (source snapshot of HEAD)
 #   - SHA256SUMS
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-VERSION="${VERSION:-0.1.0}"
+VERSION="${VERSION:-$(sed -n 's/^version = \"\(.*\)\"/\1/p' Cargo.toml)}"
 REPO="https://github.com/sadsfae/herdrscreen"
 DIST="dist"
 ZIG="${ZIG:-/tmp/zig-x86_64-linux-0.16.0/zig}"
