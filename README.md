@@ -39,6 +39,9 @@ agents. It keeps Herdr's engine and adds:
   `~/.local/state/herdr`), so herdrscreen is a drop-in replacement for existing Herdr setups.
 - `herdrscreen logs <service> [more...]` opens a dedicated logs workspace with one pane per
   service, each tailing `journalctl -fu <svc>` (use `--file <path>` to tail a log file).
+- `herdrscreen layout export [--file layout.json]` writes a workspace/tab layout as a portable
+  JSON description; `herdrscreen layout apply <file>` reloads it into a new tab or workspace,
+  so you can reuse a layout as a template on another client or machine.
 - No curl to bash: native packages for Red Hat, Debian, Arch, Slackware, and FreeBSD.
 
 [Install](#install) · [RPM](#rpm) · [Deb](#deb) · [AUR](#aur) · [Slackware](#slackware) · [FreeBSD](#freebsd)
