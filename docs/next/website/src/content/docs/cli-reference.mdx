@@ -331,6 +331,30 @@ Metadata text is normalized before storage. Herdr trims surrounding whitespace, 
 
 `--source` and `--applies-to-source` must be 80 characters or fewer and may contain only ASCII letters, digits, colon, dot, underscore, and hyphen. `--ttl-ms` makes metadata expire automatically and must be between `1` and `86400000` milliseconds. Omit it for metadata that should stay until replaced, cleared, or the pane closes. `--seq` lets Herdr ignore stale reports from the same `--source`; stale reports are accepted by the API but ignored by pane state. A pane or workspace accepts sequenced token reports from at most 32 distinct sources during its lifetime; clearing or expiry does not release those source slots.
 
+## Logs
+
+```bash
+herdrscreen logs <service> [service ...]
+herdrscreen logs --file <path>
+```
+
+`logs` opens a dedicated logs workspace with one pane per service, each
+tailing that service's systemd journal. It creates a new workspace, splits a
+pane per service, and runs `journalctl -fu <service>` in each pane, so logs
+stream live and follow across restarts. Use `--file <path>` to tail a plain
+log file instead of systemd units; in that mode each pane runs
+`tail -f <path>`, and any `<service>` arguments are ignored.
+
+```bash
+herdrscreen logs nginx postgres
+herdrscreen logs --file /var/log/app.log
+```
+
+This is a convenience command built from the existing workspace, pane split,
+and pane input verbs; it does not change the socket API. The workspace and
+panes it creates are ordinary Herdr workspaces, so you can close, rename, or
+restart them like any other layout.
+
 ## Agents
 
 For the pane-versus-agent model and complete orchestration examples, see [Agent automation](/docs/agent-automation/).
