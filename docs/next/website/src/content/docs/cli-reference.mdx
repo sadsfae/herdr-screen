@@ -185,6 +185,29 @@ Worktrees are normal Herdr workspaces with Git checkout provenance. `worktree cr
 
 Git rejects repositories owned by another user by default. If you have independently verified the repository, pass `--trust-repository` to trust its resolved path for that command only. Herdr does not change your Git configuration.
 
+## Layout
+
+```bash
+herdrscreen layout export [--tab <tab_id> | --pane <pane_id>] [--file PATH]
+herdrscreen layout apply <file> [--workspace <workspace_id>] [--tab-label TEXT] [--focus]
+```
+
+`layout export` writes the workspace, tab, and pane tree for a layout as a
+portable JSON description (a `LayoutDescription`). Without `--file`, it prints
+the JSON to stdout. `layout apply` reads such a JSON file and rebuilds the
+layout into a new tab (or replaces a workspace with `--workspace`), restoring
+each pane's label, working directory, and launch command.
+
+```bash
+herdrscreen layout export --file project.json
+herdrscreen layout apply project.json --tab-label backend
+```
+
+The exported JSON is a plain, versioned description of panes and splits; it is
+not tied to the exporting session's IDs, so you can reuse it as a template on
+another client or machine. The file format matches the socket API's
+`layout.export` / `layout.apply` methods.
+
 ## Tabs
 
 ```bash
