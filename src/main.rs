@@ -722,7 +722,11 @@ fn main() -> io::Result<()> {
 
     if args.iter().any(|a| a == "--version" || a == "-V") {
         platform::begin_cli_output();
-        println!("herdrscreen {}", crate::build_info::version());
+        println!(
+            "herdrscreen {} (herdr {})",
+            crate::build_info::RELEASE_VERSION,
+            crate::build_info::BASE_VERSION
+        );
         return Ok(());
     }
 
