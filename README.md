@@ -45,8 +45,7 @@ agents. It keeps Herdr's engine and adds:
 
 [Upstream herdr Docs](#upstream-herdr-docs)
 
-Licensing and attribution: Apache-2.0. See [LICENSE](LICENSE), [NOTICE](NOTICE), and
-[Code of Conduct](CODE_OF_CONDUCT.md).
+Licensing and attribution: Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 https://github.com/user-attachments/assets/043ec09f-4bdd-41d5-aee0-8fda6b83e267
 
