@@ -1,4 +1,4 @@
-//! `herdrscreen logs` - open a dedicated workspace tailing service logs.
+//! `herdr-screen logs` - open a dedicated workspace tailing service logs.
 //!
 //! Composes existing socket methods client-side (no new codec / no frozen
 //! Method variants): `WorkspaceCreate` to make a fresh workspace, `PaneSplit`

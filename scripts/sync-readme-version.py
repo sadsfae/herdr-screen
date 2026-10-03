@@ -3,8 +3,8 @@
 
 The README install URLs use Github's `releases/latest/download/<asset>`
 resolver, so they always point at the newest release. The asset filenames
-embed the release version, so this script rewrites every `herdrscreen-<ver>` /
-`herdrscreen_<ver>` reference to match RELEASE_VERSION (the fork's release
+embed the release version, so this script rewrites every `herdr-screen-<ver>` /
+`herdr-screen_<ver>` reference to match RELEASE_VERSION (the fork's release
 cadence, independent of the runtime version in Cargo.toml). Fails loudly if
 RELEASE_VERSION has no version. Exits 0 whether or not anything changed so
 callers can rely on `git diff` to detect an update.
@@ -40,10 +40,10 @@ def main() -> int:
         "releases/latest/download/",
         text,
     )
-    # Rewrite every embedded asset version (`herdrscreen-0.2.2.rpm`,
-    # `herdrscreen_0.2.2.deb`, ...) to the current release version.
+    # Rewrite every embedded asset version (`herdr-screen-0.2.2.rpm`,
+    # `herdr-screen_0.2.2.deb`, ...) to the current release version.
     new_text = re.sub(
-        r"(herdrscreen[-_])\d+\.\d+\.\d+",
+        r"(herdr-screen[-_])\d+\.\d+\.\d+",
         lambda m: f"{m.group(1)}{version}",
         text,
     )

@@ -1,9 +1,9 @@
-# herdrscreen docs
+# herdr-screen docs
 
-These are the human-readable docs for herdrscreen. They live at the repo root
+These are the human-readable docs for herdr-screen. They live at the repo root
 under `docs/` so they are easy to find and read directly (no website).
 
-- [CLI reference](cli-reference.md) - every `herdrscreen <subcommand>` and its options.
+- [CLI reference](cli-reference.md) - every `herdr-screen <subcommand>` and its options.
 - [Config reference](config-reference.md) - the canonical `config.toml` keys, types, and defaults.
 
 The authoritative, generated config data lives at

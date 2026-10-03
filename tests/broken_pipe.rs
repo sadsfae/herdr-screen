@@ -16,12 +16,14 @@ fn closed_pipe_writer() -> Stdio {
 }
 
 fn run_with_closed_stdout(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_herdrscreen"))
-        .args(args)
-        .stdout(closed_pipe_writer())
-        .stderr(Stdio::piped())
-        .output()
-        .expect("run herdr CLI")
+    Command::new(
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
+    )
+    .args(args)
+    .stdout(closed_pipe_writer())
+    .stderr(Stdio::piped())
+    .output()
+    .expect("run herdr CLI")
 }
 
 fn assert_quiet_sigpipe(output: Output) {

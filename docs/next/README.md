@@ -15,9 +15,9 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-666666?labelColor=333333" alt="Apache 2.0 license" /></a>
-  <a href="https://github.com/sadsfae/herdrscreen/releases"><img src="https://img.shields.io/github/downloads/sadsfae/herdrscreen/total?labelColor=333333&color=666666" alt="total GitHub release downloads" /></a>
-  <a href="https://github.com/sadsfae/herdrscreen/stargazers"><img src="https://img.shields.io/github/stars/sadsfae/herdrscreen?labelColor=333333&color=666666&logo=github" alt="GitHub stars" /></a>
-  <a href="https://github.com/sadsfae/herdrscreen/releases/latest"><img src="https://img.shields.io/github/v/release/sadsfae/herdrscreen?label=release&labelColor=333333&color=666666" alt="latest stable release" /></a>
+  <a href="https://github.com/sadsfae/herdr-screen/releases"><img src="https://img.shields.io/github/downloads/sadsfae/herdr-screen/total?labelColor=333333&color=666666" alt="total GitHub release downloads" /></a>
+  <a href="https://github.com/sadsfae/herdr-screen/stargazers"><img src="https://img.shields.io/github/stars/sadsfae/herdr-screen?labelColor=333333&color=666666&logo=github" alt="GitHub stars" /></a>
+  <a href="https://github.com/sadsfae/herdr-screen/releases/latest"><img src="https://img.shields.io/github/v/release/sadsfae/herdr-screen?label=release&labelColor=333333&color=666666" alt="latest stable release" /></a>
   <a href="https://formulae.brew.sh/formula/herdr"><img src="https://img.shields.io/homebrew/v/herdr?label=homebrew&labelColor=333333&color=666666" alt="Homebrew version" /></a>
   <a href="https://x.com/herdrdev"><img src="https://img.shields.io/badge/follow-%40herdrdev-000000?logo=x&logoColor=white" alt="follow @herdrdev on X" /></a>
 </p>
@@ -45,7 +45,7 @@ https://github.com/user-attachments/assets/043ec09f-4bdd-41d5-aee0-8fda6b83e267
 curl -fsSL https://herdr.dev/install.sh | sh
 ```
 
-or `brew install herdr` · `mise use -g herdr` · windows: `powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"` · [endpoint-protected Windows](https://herdr.dev/docs/windows-beta/) · [binaries](https://github.com/sadsfae/herdrscreen/releases)
+or `brew install herdr` · `mise use -g herdr` · windows: `powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"` · [endpoint-protected Windows](https://herdr.dev/docs/windows-beta/) · [binaries](https://github.com/sadsfae/herdr-screen/releases)
 
 then start it where the work lives:
 
@@ -72,8 +72,8 @@ if you are an ai agent helping with this repository, read [`AGENTS.md`](./AGENTS
 ## development
 
 ```bash
-git clone https://github.com/sadsfae/herdrscreen
-cd herdrscreen
+git clone https://github.com/sadsfae/herdr-screen
+cd herdr-screen
 cargo build --release
 
 just test        # unit tests

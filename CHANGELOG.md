@@ -1,16 +1,16 @@
 # Changelog
 
-## herdrscreen 0.1.0
+## herdr-screen 0.1.0
 
-Initial herdrscreen release: a GNU screen edition hard fork of Herdr 0.9.3
+Initial herdr-screen release: a GNU screen edition hard fork of Herdr 0.9.3
 (https://github.com/herdrdev/herdr, Apache-2.0).
 
 - GNU screen keybindings by default: prefix `ctrl+a`; `ctrl+a ctrl+a` toggles
   the last focused tab (`keys.last_tab = "prefix+prefix"`).
-- Self-update disabled: `herdrscreen update` is stubbed and version/manifest
+- Self-update disabled: `herdr-screen update` is stubbed and version/manifest
   checks default to off; updates ship as packages (RPM, deb, AUR).
-- Package identity herdrscreen; binary version stays 0.9.3 for plugin
-  compatibility, with `HERDR_BUILD_CHANNEL=herdrscreen` in release builds.
+- Package identity herdr-screen; binary version stays 0.9.3 for plugin
+  compatibility, with `HERDR_BUILD_CHANNEL=herdr-screen` in release builds.
 - Config and session state remain in Herdr's paths (`~/.config/herdr`,
   `~/.local/state/herdr`).
 

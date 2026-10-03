@@ -122,7 +122,9 @@ fn spawn_server(
         })
         .unwrap();
 
-    let mut cmd = CommandBuilder::new(env!("CARGO_BIN_EXE_herdrscreen"));
+    let mut cmd = CommandBuilder::new(
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
+    );
     cmd.arg("server");
     cmd.env("XDG_CONFIG_HOME", config_home);
     cmd.env("XDG_RUNTIME_DIR", runtime_dir);
@@ -355,7 +357,9 @@ fn duplicate_server_start_fails_gracefully() {
         })
         .unwrap();
 
-    let mut cmd = CommandBuilder::new(env!("CARGO_BIN_EXE_herdrscreen"));
+    let mut cmd = CommandBuilder::new(
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
+    );
     cmd.arg("server");
     cmd.env("XDG_CONFIG_HOME", &config_home);
     cmd.env("XDG_RUNTIME_DIR", &runtime_dir);

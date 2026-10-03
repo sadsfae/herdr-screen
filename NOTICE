@@ -1,5 +1,5 @@
-herdrscreen
-Copyright 2026 the herdrscreen contributors
+herdr-screen
+Copyright 2026 the herdr-screen contributors
 
 This product is a hard fork of Herdr, a terminal workspace manager for AI
 coding agents.
@@ -9,12 +9,12 @@ Herdr:
   https://github.com/herdrdev/herdr
   Licensed under the Apache License, Version 2.0.
 
-herdrscreen modifications relative to Herdr:
+herdr-screen modifications relative to Herdr:
   - GNU screen keybinding defaults: prefix is ctrl+a and the last-tab
     toggle (prefix+prefix) is bound by default (keys.last_tab patch).
   - Self-update and version/manifest checks are disabled by default;
     updates are distributed as packages (RPM, deb, AUR).
-  - Package and binary identity: herdrscreen (version 0.1.0).
+  - Package and binary identity: herdr-screen (version 0.1.0).
 
 Other bundled components:
   - libghostty-vt (vendored), Copyright (c) 2024 Mitchell Hashimoto,

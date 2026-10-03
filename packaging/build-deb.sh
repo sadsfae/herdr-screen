@@ -1,26 +1,26 @@
 #!/usr/bin/env bash
-# Build herdrscreen_<version>_amd64.deb with nothing but binutils (ar/tar).
-# Requires: a built static binary at $1 (default: <repo>/target/x86_64-unknown-linux-musl/release/herdrscreen)
+# Build herdr-screen_<version>_amd64.deb with nothing but binutils (ar/tar).
+# Requires: a built static binary at $1 (default: <repo>/target/x86_64-unknown-linux-musl/release/herdr-screen)
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-BIN="${1:-$REPO/target/x86_64-unknown-linux-musl/release/herdrscreen}"
+BIN="${1:-$REPO/target/x86_64-unknown-linux-musl/release/herdr-screen}"
 VERSION="${HERDRSCREEN_VERSION:-0.1.0}"
-OUT="${2:-$REPO/dist/herdrscreen_${VERSION}_amd64.deb}"
+OUT="${2:-$REPO/dist/herdr-screen_${VERSION}_amd64.deb}"
 OUT="$(cd "$(dirname "$OUT")" && pwd)/$(basename "$OUT")"
 ROOT="$REPO/dist/deb-root"
 
 rm -rf "$ROOT"
-mkdir -p "$ROOT/DEBIAN" "$ROOT/usr/bin" "$ROOT/usr/share/doc/herdrscreen"
-install -Dm755 "$BIN" "$ROOT/usr/bin/herdrscreen"
-install -Dm644 "$REPO/LICENSE" "$ROOT/usr/share/doc/herdrscreen/copyright"
-install -Dm644 "$REPO/NOTICE" "$ROOT/usr/share/doc/herdrscreen/NOTICE"
-install -Dm644 "$REPO/README.md" "$ROOT/usr/share/doc/herdrscreen/README.md"
-install -Dm644 "$REPO/CHANGELOG.md" "$ROOT/usr/share/doc/herdrscreen/changelog"
+mkdir -p "$ROOT/DEBIAN" "$ROOT/usr/bin" "$ROOT/usr/share/doc/herdr-screen"
+install -Dm755 "$BIN" "$ROOT/usr/bin/herdr-screen"
+install -Dm644 "$REPO/LICENSE" "$ROOT/usr/share/doc/herdr-screen/copyright"
+install -Dm644 "$REPO/NOTICE" "$ROOT/usr/share/doc/herdr-screen/NOTICE"
+install -Dm644 "$REPO/README.md" "$ROOT/usr/share/doc/herdr-screen/README.md"
+install -Dm644 "$REPO/CHANGELOG.md" "$ROOT/usr/share/doc/herdr-screen/changelog"
 
 SIZE=$(du -sk "$ROOT/usr" | cut -f1)
 cat >"$ROOT/DEBIAN/control" <<EOF
-Package: herdrscreen
+Package: herdr-screen
 Version: $VERSION
 Architecture: amd64
 Maintainer: sadsfae <sadsfae@users.noreply.github.com>

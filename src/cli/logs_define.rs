@@ -1,7 +1,7 @@
-//! `herdrscreen logs-define` - define named log/service watchers.
+//! `herdr-screen logs-define` - define named log/service watchers.
 //!
 //! Service definitions live in a small TOML file in the config dir
-//! (`logs-services.toml`). `herdrscreen logs <name>` then tails whatever
+//! (`logs-services.toml`). `herdr-screen logs <name>` then tails whatever
 //! command a definition carries instead of assuming a systemd unit.
 //!
 //! Usage:
@@ -120,8 +120,8 @@ fn write_services(path: &PathBuf, services: &BTreeMap<String, String>) -> std::i
         std::fs::create_dir_all(parent)?;
     }
     let mut file = std::fs::File::create(path)?;
-    writeln!(file, "# herdrscreen log service definitions")?;
-    writeln!(file, "# `herdrscreen logs <name>` tails these commands.")?;
+    writeln!(file, "# herdr-screen log service definitions")?;
+    writeln!(file, "# `herdr-screen logs <name>` tails these commands.")?;
     for (name, command) in services {
         writeln!(file, "\"{name}\" = \"{command}\"")?;
     }
