@@ -330,18 +330,13 @@ mod unix_common;
 #[cfg(unix)]
 pub(crate) mod unix_image_files;
 #[cfg(unix)]
-pub(crate) use unix_common::{
-    begin_cli_output, end_cli_output, forward_remote_bridge_stdio, RemoteBridgeWake,
-};
+pub(crate) use unix_common::{begin_cli_output, forward_remote_bridge_stdio, RemoteBridgeWake};
 
 mod client_state;
 pub(crate) use client_state::{create_private_state_file, replace_file, sync_parent_directory};
 
 #[cfg(not(unix))]
 pub(crate) fn begin_cli_output() {}
-
-#[cfg(not(unix))]
-pub(crate) fn end_cli_output() {}
 
 #[cfg(target_os = "linux")]
 mod linux;

@@ -13,7 +13,6 @@ use serde::{Deserialize, Serialize};
 use super::{agent_label, parse_agent_label, Agent};
 
 pub(crate) const MANIFEST_ENGINE_VERSION: u32 = 3;
-const DEFAULT_CATALOG_URL: &str = "https://herdr.dev/agent-detection/index.toml";
 const CATALOG_URL_ENV: &str = "HERDR_AGENT_DETECTION_MANIFEST_CATALOG_URL";
 const MAX_FETCH_BYTES: usize = 256 * 1024;
 
@@ -233,7 +232,15 @@ pub(crate) struct ManifestUpdateOutput {
 }
 
 pub(crate) fn check_and_update() -> Result<ManifestUpdateOutput, String> {
-    check_and_update_from_url(&catalog_url())
+    let Some(url) = catalog_url() else {
+        // No catalog URL configured; never phone home.
+        return Ok(ManifestUpdateOutput {
+            checked: Vec::new(),
+            updated: Vec::new(),
+            status: load_status(),
+        });
+    };
+    check_and_update_from_url(&url)
 }
 
 fn check_and_update_from_url(url: &str) -> Result<ManifestUpdateOutput, String> {
@@ -498,12 +505,11 @@ fn state_root() -> PathBuf {
     crate::config::state_dir().join("agent-detection")
 }
 
-fn catalog_url() -> String {
+fn catalog_url() -> Option<String> {
     std::env::var(CATALOG_URL_ENV)
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| DEFAULT_CATALOG_URL.to_string())
 }
 
 fn fetch_text(url: &str) -> Result<String, String> {
