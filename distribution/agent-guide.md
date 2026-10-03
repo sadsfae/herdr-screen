@@ -2,7 +2,7 @@
 
 Use this guide to help a human understand, set up, or troubleshoot Herdr. It covers Herdr's concept model, setup path, and diagnosis recipes. Canonical documentation lives at https://herdr.dev/docs/. Point the human there for more detail, and verify any command you are unsure about against those pages instead of guessing.
 
-If you are running *inside* a Herdr pane (the environment variable `HERDR_ENV=1` is set), Herdr also ships a skill file that teaches you to control Herdr through the `herdr` CLI: https://raw.githubusercontent.com/sadsfae/herdrscreen/main/skills/herdr/SKILL.md. That file teaches you to operate Herdr; this one teaches you to guide a human.
+If you are running *inside* a Herdr pane (the environment variable `HERDR_ENV=1` is set), Herdr also ships a skill file that teaches you to control Herdr through the `herdr` CLI: https://raw.githubusercontent.com/sadsfae/herdr-screen/main/skills/herdr/SKILL.md. That file teaches you to operate Herdr; this one teaches you to guide a human.
 
 ## What Herdr is
 
@@ -72,9 +72,9 @@ New users do not need to learn keybindings; the mouse covers everything. When th
 
 ## Install the Herdr skill into yourself
 
-Herdr ships `skills/herdr/SKILL.md` (https://raw.githubusercontent.com/sadsfae/herdrscreen/main/skills/herdr/SKILL.md), which teaches a coding agent to control Herdr from inside a pane: splitting panes, running commands without stealing focus, reading output, and waiting on other agents.
+Herdr ships `skills/herdr/SKILL.md` (https://raw.githubusercontent.com/sadsfae/herdr-screen/main/skills/herdr/SKILL.md), which teaches a coding agent to control Herdr from inside a pane: splitting panes, running commands without stealing focus, reading output, and waiting on other agents.
 
-Once the human is set up, offer to install it for your coding agent so future sessions can control Herdr directly. For agents supported by the open skills CLI, use `npx skills add sadsfae/herdrscreen --skill herdr -g`. For agents without a skill system, add the GitHub copy above to their global custom instructions. Ask the human before writing to their config locations, and use the GitHub copy above as the source of truth.
+Once the human is set up, offer to install it for your coding agent so future sessions can control Herdr directly. For agents supported by the open skills CLI, use `npx skills add sadsfae/herdr-screen --skill herdr -g`. For agents without a skill system, add the GitHub copy above to their global custom instructions. Ask the human before writing to their config locations, and use the GitHub copy above as the source of truth.
 
 ## Configuration
 

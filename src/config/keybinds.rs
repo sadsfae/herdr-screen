@@ -11,7 +11,7 @@ use crate::popup_size::PopupSize;
 pub type KeyCombo = (KeyCode, KeyModifiers);
 
 /// Built-in prefix used when `keys.prefix` is unset or invalid.
-/// herdrscreen defaults to GNU screen style control+a.
+/// herdr-screen defaults to GNU screen style control+a.
 pub(crate) const DEFAULT_PREFIX: KeyCombo = (KeyCode::Char('a'), KeyModifiers::CONTROL);
 
 #[derive(Debug, Clone)]
@@ -2596,7 +2596,7 @@ switch_tab = "prefix+prefix"
 }
 
 #[test]
-fn herdrscreen_defaults_are_gnu_screen_style() {
+fn herdr_screen_defaults_are_gnu_screen_style() {
     let config = Config::default();
     assert_eq!(DEFAULT_PREFIX, (KeyCode::Char('a'), KeyModifiers::CONTROL));
     assert_eq!(config.keys.prefix.values(), vec!["ctrl+a"]);

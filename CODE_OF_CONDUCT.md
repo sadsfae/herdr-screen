@@ -1,4 +1,4 @@
-herdrscreen Code of Conduct
+herdr-screen Code of Conduct
 ===========================
 
 ## Overview

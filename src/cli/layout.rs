@@ -136,7 +136,7 @@ fn layout_apply(args: &[String]) -> std::io::Result<i32> {
 
     let Some(file) = file else {
         eprintln!(
-            "usage: herdrscreen layout apply <file> [--workspace ID] [--tab-label LABEL] [--focus]"
+            "usage: herdr-screen layout apply <file> [--workspace ID] [--tab-label LABEL] [--focus]"
         );
         return Ok(2);
     };
@@ -164,7 +164,7 @@ fn layout_apply(args: &[String]) -> std::io::Result<i32> {
 }
 
 fn print_layout_help() {
-    println!("usage: herdrscreen layout <export|apply> [options]");
+    println!("usage: herdr-screen layout <export|apply> [options]");
     println!();
     println!("export: export a workspace/tab layout as a portable JSON description");
     println!("  --tab <tab_id>     export a specific tab");

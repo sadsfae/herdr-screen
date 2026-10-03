@@ -99,7 +99,7 @@ jobs:
       - name: Build artifacts
         env:
           VERSION: ${{ steps.version.outputs.value }}
-          HERDR_BUILD_CHANNEL: herdrscreen
+          HERDR_BUILD_CHANNEL: herdr-screen
         run: bash packaging/release.sh
 
       - name: Save Cargo cache

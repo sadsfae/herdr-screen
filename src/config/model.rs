@@ -40,7 +40,7 @@ impl Default for UpdateConfig {
     fn default() -> Self {
         Self {
             channel: default_update_channel(),
-            // herdrscreen ships via packages; self-update and the upstream
+            // herdr-screen ships via packages; self-update and the upstream
             // manifest checks stay off by default.
             version_check: false,
             manifest_check: false,
@@ -1363,7 +1363,7 @@ mod tests {
     fn update_config_defaults_and_parses() {
         let default_config = Config::default();
         assert_eq!(default_config.update.channel, default_update_channel());
-        // herdrscreen ships via packages; self-update checks are off by default.
+        // herdr-screen ships via packages; self-update checks are off by default.
         assert!(!default_config.update.version_check);
         assert!(!default_config.update.manifest_check);
 

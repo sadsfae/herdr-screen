@@ -1,21 +1,21 @@
-# herdrscreen-bin: GNU screen edition of Herdr (static binary from GitHub release)
+# herdr-screen-bin: GNU screen edition of Herdr (static binary from GitHub release)
 # AUR contributors: use `makepkg --printsrcinfo > .SRCINFO` before submitting.
-pkgname=herdrscreen-bin
+pkgname=herdr-screen-bin
 pkgver=0.2.0
 pkgrel=1
 pkgdesc="GNU screen edition of the Herdr terminal workspace manager (static binary)"
 arch=('x86_64')
-url="https://github.com/sadsfae/herdrscreen"
+url="https://github.com/sadsfae/herdr-screen"
 license=('Apache-2.0')
 depends=('openssh' 'git' 'curl')
-provides=('herdrscreen')
-conflicts=('herdrscreen')
-source=("herdrscreen-linux-x86_64::https://github.com/sadsfae/herdrscreen/releases/download/v${pkgver}/herdrscreen-linux-x86_64"
-        "LICENSE::https://raw.githubusercontent.com/sadsfae/herdrscreen/v${pkgver}/LICENSE")
+provides=('herdr-screen')
+conflicts=('herdr-screen')
+source=("herdr-screen-linux-x86_64::https://github.com/sadsfae/herdr-screen/releases/download/v${pkgver}/herdr-screen-linux-x86_64"
+        "LICENSE::https://raw.githubusercontent.com/sadsfae/herdr-screen/v${pkgver}/LICENSE")
 sha256sums=('9babbc0c05ec934efaedc3c470996f74ffba74ee0258c0ec3ae54402c0191cdc'
             'c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4')
 
 package() {
-  install -Dm755 "$srcdir/herdrscreen-linux-x86_64" "$pkgdir/usr/bin/herdrscreen"
-  install -Dm644 "$srcdir/LICENSE" "$pkgdir/usr/share/licenses/herdrscreen/LICENSE"
+  install -Dm755 "$srcdir/herdr-screen-linux-x86_64" "$pkgdir/usr/bin/herdr-screen"
+  install -Dm644 "$srcdir/LICENSE" "$pkgdir/usr/share/licenses/herdr-screen/LICENSE"
 }

@@ -1,6 +1,6 @@
 # Config reference
 
-Every canonical `config.toml` key that herdrscreen reads, with types, defaults,
+Every canonical `config.toml` key that herdr-screen reads, with types, defaults,
 and allowed values.
 
 The authoritative, generated reference is at
@@ -10,7 +10,7 @@ The authoritative, generated reference is at
 Print the full commented default config at any time:
 
 ```bash
-herdrscreen --default-config
+herdr-screen --default-config
 ```
 
 Custom command bindings (`[[keys.command]]`) are user-defined tables and are
