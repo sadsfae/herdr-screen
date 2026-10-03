@@ -1,4 +1,3 @@
-#![allow(clippy::env_cargo_bin_exe)]
 pub(super) use std::fs;
 pub(super) use std::io::{BufRead, BufReader, Write};
 pub(super) use std::os::unix::net::{UnixListener, UnixStream};
@@ -175,7 +174,9 @@ pub(super) fn spawn_named_server(
     )
     .unwrap();
 
-    let mut command = Command::new(env!("CARGO_BIN_EXE_herdr_screen"));
+    let mut command = Command::new(
+        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+    );
     command
         .args(["--session", session, "server"])
         .env("XDG_CONFIG_HOME", config_home)
@@ -225,7 +226,9 @@ pub(super) fn run_named_cli_with_env_and_socket_override(
     envs: &[(&str, &Path)],
     socket_override: Option<&Path>,
 ) -> std::process::Output {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_herdr_screen"));
+    let mut command = Command::new(
+        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+    );
     command
         .args(args)
         .env("XDG_CONFIG_HOME", config_home)
@@ -300,7 +303,9 @@ pub(super) fn spawn_herdr_with_config(
         })
         .unwrap();
 
-    let mut cmd = CommandBuilder::new(env!("CARGO_BIN_EXE_herdr_screen"));
+    let mut cmd = CommandBuilder::new(
+        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+    );
     cmd.arg("server");
     cmd.env("XDG_CONFIG_HOME", config_home);
     cmd.env("XDG_RUNTIME_DIR", runtime_dir);
@@ -321,7 +326,9 @@ pub(super) fn spawn_herdr_with_config(
 }
 
 pub(super) fn run_cli(socket_path: &Path, args: &[&str]) -> std::process::Output {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_herdr_screen"));
+    let mut command = Command::new(
+        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+    );
     command.args(args);
     command.env("HERDR_SOCKET_PATH", socket_path);
     command.output().unwrap()
@@ -332,7 +339,9 @@ pub(super) fn run_cli_in_dir(
     args: &[&str],
     current_dir: &Path,
 ) -> std::process::Output {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_herdr_screen"));
+    let mut command = Command::new(
+        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+    );
     command.args(args);
     command.current_dir(current_dir);
     command.env("HERDR_SOCKET_PATH", socket_path);

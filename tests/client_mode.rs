@@ -1,6 +1,5 @@
 //! Integration tests for thin client mode.
 
-#![allow(clippy::env_cargo_bin_exe)]
 #![cfg(unix)]
 
 pub mod support;
@@ -125,7 +124,9 @@ fn spawn_client_process_with_args_and_env(
         })
         .unwrap();
 
-    let mut cmd = CommandBuilder::new(env!("CARGO_BIN_EXE_herdr_screen"));
+    let mut cmd = CommandBuilder::new(
+        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+    );
     cmd.args(args);
     cmd.env("HERDR_DISABLE_SOUND", "1");
     cmd.env("XDG_STATE_HOME", runtime_dir.join("state"));
@@ -185,7 +186,9 @@ fn spawn_server_with_config(
         })
         .unwrap();
 
-    let mut cmd = CommandBuilder::new(env!("CARGO_BIN_EXE_herdr_screen"));
+    let mut cmd = CommandBuilder::new(
+        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+    );
     cmd.arg("server");
     cmd.env("XDG_CONFIG_HOME", config_home);
     cmd.env("XDG_RUNTIME_DIR", runtime_dir);
@@ -435,7 +438,9 @@ fn client_sees_headless_startup_config_diagnostic() {
         })
         .unwrap();
 
-    let mut cmd = CommandBuilder::new(env!("CARGO_BIN_EXE_herdr_screen"));
+    let mut cmd = CommandBuilder::new(
+        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+    );
     cmd.arg("server");
     cmd.env("XDG_CONFIG_HOME", &config_home);
     cmd.env("XDG_RUNTIME_DIR", &runtime_dir);
@@ -496,17 +501,19 @@ fn server_unreachable_shows_clear_error() {
     )
     .unwrap();
 
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_herdr_screen"))
-        .arg("client")
-        .env("HERDR_DISABLE_SOUND", "1")
-        .env("XDG_CONFIG_HOME", &config_home)
-        .env("XDG_RUNTIME_DIR", &runtime_dir)
-        .env("XDG_STATE_HOME", runtime_dir.join("state"))
-        .env("HERDR_SOCKET_PATH", &api_socket)
-        .env_remove("HERDR_CLIENT_SOCKET_PATH")
-        .env_remove("HERDR_ENV")
-        .output()
-        .expect("client command should run");
+    let output = std::process::Command::new(
+        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+    )
+    .arg("client")
+    .env("HERDR_DISABLE_SOUND", "1")
+    .env("XDG_CONFIG_HOME", &config_home)
+    .env("XDG_RUNTIME_DIR", &runtime_dir)
+    .env("XDG_STATE_HOME", runtime_dir.join("state"))
+    .env("HERDR_SOCKET_PATH", &api_socket)
+    .env_remove("HERDR_CLIENT_SOCKET_PATH")
+    .env_remove("HERDR_ENV")
+    .output()
+    .expect("client command should run");
 
     assert!(
         !output.status.success(),
@@ -1033,7 +1040,11 @@ fn federated_client_starts_without_local_and_survives_its_restart() {
     let bin = base.join("bin");
     fs::create_dir_all(&bin).unwrap();
     fs::create_dir_all(base.join("home")).unwrap();
-    std::os::unix::fs::symlink(env!("CARGO_BIN_EXE_herdr_screen"), bin.join("herdr")).unwrap();
+    std::os::unix::fs::symlink(
+        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        bin.join("herdr"),
+    )
+    .unwrap();
     let quote =
         |path: &std::path::Path| format!("'{}'", path.display().to_string().replace('\'', "'\\''"));
     let ssh_commands = base.join("ssh-commands");
@@ -2068,7 +2079,9 @@ fn client_receives_notify_on_agent_state_change() {
         })
         .unwrap();
 
-    let mut cmd = CommandBuilder::new(env!("CARGO_BIN_EXE_herdr_screen"));
+    let mut cmd = CommandBuilder::new(
+        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+    );
     cmd.arg("server");
     cmd.env("XDG_CONFIG_HOME", &config_home);
     cmd.env("XDG_RUNTIME_DIR", &runtime_dir);

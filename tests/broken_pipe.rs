@@ -1,4 +1,3 @@
-#![allow(clippy::env_cargo_bin_exe)]
 #![cfg(unix)]
 
 use std::os::fd::{FromRawFd, OwnedFd};
@@ -17,12 +16,14 @@ fn closed_pipe_writer() -> Stdio {
 }
 
 fn run_with_closed_stdout(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_herdr_screen"))
-        .args(args)
-        .stdout(closed_pipe_writer())
-        .stderr(Stdio::piped())
-        .output()
-        .expect("run herdr CLI")
+    Command::new(
+        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+    )
+    .args(args)
+    .stdout(closed_pipe_writer())
+    .stderr(Stdio::piped())
+    .output()
+    .expect("run herdr CLI")
 }
 
 fn assert_quiet_sigpipe(output: Output) {

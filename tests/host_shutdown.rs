@@ -1,4 +1,3 @@
-#![allow(clippy::env_cargo_bin_exe)]
 #![cfg(target_os = "linux")]
 
 use std::io::{BufRead, Read, Write};
@@ -126,23 +125,26 @@ async fn host_shutdown_saves_layout_before_releasing_delay_lock() {
     let config = base.join("config.toml");
     std::fs::write(&config, "onboarding = false\n[experimental]\nallow_nested = true\n[terminal]\ndefault_shell = \"/bin/sh\"\n").unwrap();
     let mut server = ChildGuard(
-        Command::new(env!("CARGO_BIN_EXE_herdr_screen"))
-            .args(["--session", "shutdown", "server"])
-            .env("XDG_CONFIG_HOME", &base)
-            .env("XDG_STATE_HOME", &base)
-            .env("XDG_RUNTIME_DIR", &base)
-            .env("HERDR_CONFIG_PATH", &config)
-            .env_remove("HERDR_SOCKET_PATH")
-            .env("DBUS_SYSTEM_BUS_ADDRESS", address.trim())
-            .env_remove("HERDR_CLIENT_SOCKET_PATH")
-            .env_remove("HERDR_SESSION")
-            .env_remove("HERDR_WORKSPACE_ID")
-            .env_remove("HERDR_TAB_ID")
-            .env_remove("HERDR_PANE_ID")
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .spawn()
-            .unwrap(),
+        Command::new(
+            std::env::var("CARGO_BIN_EXE_herdr_screen")
+                .expect("CARGO_BIN_EXE_herdr_screen not set"),
+        )
+        .args(["--session", "shutdown", "server"])
+        .env("XDG_CONFIG_HOME", &base)
+        .env("XDG_STATE_HOME", &base)
+        .env("XDG_RUNTIME_DIR", &base)
+        .env("HERDR_CONFIG_PATH", &config)
+        .env_remove("HERDR_SOCKET_PATH")
+        .env("DBUS_SYSTEM_BUS_ADDRESS", address.trim())
+        .env_remove("HERDR_CLIENT_SOCKET_PATH")
+        .env_remove("HERDR_SESSION")
+        .env_remove("HERDR_WORKSPACE_ID")
+        .env_remove("HERDR_TAB_ID")
+        .env_remove("HERDR_PANE_ID")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .spawn()
+        .unwrap(),
     );
     tokio::time::timeout(Duration::from_secs(10), async {
         while !socket.exists() || peer.lock().unwrap().is_none() {

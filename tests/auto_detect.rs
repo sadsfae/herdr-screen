@@ -1,6 +1,5 @@
 //! Integration tests for auto-detect launch behavior.
 
-#![allow(clippy::env_cargo_bin_exe)]
 #![cfg(all(unix, not(target_os = "macos")))]
 
 pub mod support;
@@ -106,7 +105,9 @@ fn spawn_server(
         })
         .unwrap();
 
-    let mut cmd = CommandBuilder::new(env!("CARGO_BIN_EXE_herdr_screen"));
+    let mut cmd = CommandBuilder::new(
+        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+    );
     cmd.arg("server");
     cmd.env("XDG_CONFIG_HOME", config_home);
     cmd.env("XDG_RUNTIME_DIR", runtime_dir);
@@ -150,7 +151,9 @@ fn spawn_herdr_auto(
         })
         .unwrap();
 
-    let mut cmd = CommandBuilder::new(env!("CARGO_BIN_EXE_herdr_screen"));
+    let mut cmd = CommandBuilder::new(
+        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+    );
     // No subcommand → auto-detect launch.
     cmd.env("XDG_CONFIG_HOME", config_home);
     cmd.env("XDG_RUNTIME_DIR", runtime_dir);
@@ -201,7 +204,9 @@ fn wait_for_log_contains(path: &Path, needle: &str, timeout: Duration) {
 }
 
 fn run_cli(socket_path: &Path, args: &[&str]) -> std::process::Output {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_herdr_screen"));
+    let mut command = Command::new(
+        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+    );
     command.args(args);
     command.env("HERDR_SOCKET_PATH", socket_path);
     command.output().unwrap()
@@ -256,7 +261,10 @@ fn session_attach_without_terminal_leaves_no_session() {
     };
     let session_dir = config_home.join(app_dir).join("sessions").join(name);
     let run = |args: &[&str]| {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_herdr_screen"));
+        let mut command = Command::new(
+            std::env::var("CARGO_BIN_EXE_herdr_screen")
+                .expect("CARGO_BIN_EXE_herdr_screen not set"),
+        );
         command
             .args(args)
             .env("XDG_CONFIG_HOME", &config_home)
@@ -600,7 +608,9 @@ fn auto_detect_default_socket_path_from_config_dir() {
         })
         .unwrap();
 
-    let mut cmd = CommandBuilder::new(env!("CARGO_BIN_EXE_herdr_screen"));
+    let mut cmd = CommandBuilder::new(
+        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+    );
     cmd.arg("server");
     cmd.env("XDG_CONFIG_HOME", &config_home);
     cmd.env("XDG_RUNTIME_DIR", &runtime_dir);
@@ -709,14 +719,16 @@ fn auto_detect_respects_nested_guard_before_auto_attach() {
         .map(|workspaces| workspaces.len())
         .unwrap_or(0);
 
-    let output = Command::new(env!("CARGO_BIN_EXE_herdr_screen"))
-        .env("XDG_CONFIG_HOME", &config_home)
-        .env("XDG_RUNTIME_DIR", &runtime_dir)
-        .env("HERDR_SOCKET_PATH", &api_socket)
-        .env_remove("HERDR_CLIENT_SOCKET_PATH")
-        .env("HERDR_ENV", "1")
-        .output()
-        .unwrap();
+    let output = Command::new(
+        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+    )
+    .env("XDG_CONFIG_HOME", &config_home)
+    .env("XDG_RUNTIME_DIR", &runtime_dir)
+    .env("HERDR_SOCKET_PATH", &api_socket)
+    .env_remove("HERDR_CLIENT_SOCKET_PATH")
+    .env("HERDR_ENV", "1")
+    .output()
+    .unwrap();
 
     assert!(
         !output.status.success(),
