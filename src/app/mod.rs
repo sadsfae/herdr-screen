@@ -474,7 +474,6 @@ impl App {
             update_available,
             update_install_command,
             latest_release_notes_available,
-            update_dismissed: false,
             config_diagnostic,
             toast: None,
             pending_agent_notifications: std::collections::HashMap::new(),
@@ -538,16 +537,10 @@ impl App {
         // Background auto-update is disabled for non-persistent test apps
         // and in debug/test builds so local development never mutates the
         // running binary out from under spawned test processes.
-        let version_check_enabled =
-            background_update_check_enabled(policy.background_updates, config.update.version_check);
         let manifest_check_enabled = background_update_check_enabled(
             policy.background_updates,
             config.update.manifest_check,
         );
-        if version_check_enabled {
-            let update_tx = event_tx.clone();
-            std::thread::spawn(move || crate::update::auto_update(update_tx));
-        }
         if manifest_check_enabled {
             let manifest_update_tx = event_tx.clone();
             std::thread::spawn(move || {
@@ -587,8 +580,7 @@ impl App {
             pending_worktree_remove_runtime_exits: HashMap::new(),
             pending_worktree_remove_runtime_restores: HashMap::new(),
             next_api_worktree_operation_id: 1,
-            next_auto_update_check: version_check_enabled
-                .then_some(Instant::now() + AUTO_UPDATE_CHECK_INTERVAL),
+            next_auto_update_check: None,
             next_agent_manifest_update_check: manifest_check_enabled
                 .then_some(Instant::now() + AUTO_UPDATE_CHECK_INTERVAL),
             update_version_check_enabled: config.update.version_check,
@@ -1292,20 +1284,15 @@ mod tests {
         let mut app = test_app();
         for i in 0..=APP_EVENT_DRAIN_LIMIT {
             app.event_tx
-                .try_send(AppEvent::UpdateReady {
-                    version: format!("2.0.{i}"),
-                    install_command: "herdr install".into(),
+                .try_send(AppEvent::PaneDied {
+                    pane_id: crate::layout::PaneId::from_raw(i as u32),
+                    exit_reason: crate::platform::ChildExitReason::Exited,
                 })
                 .unwrap();
         }
 
         assert!(app.drain_internal_events());
 
-        let expected_version = format!("2.0.{}", APP_EVENT_DRAIN_LIMIT - 1);
-        assert_eq!(
-            app.state.update_available.as_deref(),
-            Some(expected_version.as_str())
-        );
         assert!(app.event_rx.try_recv().is_ok());
     }
 
@@ -1314,9 +1301,9 @@ mod tests {
         let mut app = test_app();
         for i in 0..=APP_EVENT_DRAIN_LIMIT {
             app.event_tx
-                .try_send(AppEvent::UpdateReady {
-                    version: format!("3.0.{i}"),
-                    install_command: "herdr install".into(),
+                .try_send(AppEvent::PaneDied {
+                    pane_id: crate::layout::PaneId::from_raw(i as u32),
+                    exit_reason: crate::platform::ChildExitReason::Exited,
                 })
                 .unwrap();
         }
@@ -1330,11 +1317,6 @@ mod tests {
         let response: serde_json::Value = serde_json::from_str(&response).unwrap();
 
         assert_eq!(response["result"]["type"], "ok");
-        let expected_version = format!("3.0.{APP_EVENT_DRAIN_LIMIT}");
-        assert_eq!(
-            app.state.update_available.as_deref(),
-            Some(expected_version.as_str())
-        );
         assert!(app.event_rx.try_recv().is_err());
     }
 
@@ -1516,33 +1498,6 @@ mod tests {
                 .as_ref()
                 .map(|notes| notes.version.as_str()),
             Some("99.99.99")
-        );
-
-        std::env::remove_var(crate::config::CONFIG_PATH_ENV_VAR);
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
-    }
-
-    #[test]
-    fn update_ready_refreshes_cached_release_notes() {
-        let _guard = config_env_lock().lock().unwrap();
-        let path = temp_config_path("update-ready-refreshes-release-notes");
-        std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, &path);
-        let mut app = test_app();
-        assert!(app.state.latest_release_notes.is_none());
-
-        crate::release_notes::save_pending("99.99.99", "### Changed\n- One").unwrap();
-        app.handle_internal_event(AppEvent::UpdateReady {
-            version: "99.99.99".into(),
-            install_command: "herdr update".into(),
-        });
-
-        assert_eq!(
-            app.state.latest_release_notes.as_ref().map(|notes| (
-                notes.version.as_str(),
-                notes.body.as_str(),
-                notes.preview
-            )),
-            Some(("99.99.99", "### Changed\n- One", true))
         );
 
         std::env::remove_var(crate::config::CONFIG_PATH_ENV_VAR);
@@ -3265,9 +3220,9 @@ mod tests {
 
         for i in 0..APP_EVENT_CHANNEL_CAPACITY {
             app.event_tx
-                .try_send(AppEvent::UpdateReady {
-                    version: format!("9.9.{i}"),
-                    install_command: "herdr update".into(),
+                .try_send(AppEvent::WorktreeRuntimeRestoreFailed {
+                    pane_id: crate::layout::PaneId::from_raw(i as u32),
+                    operation_id: i as u64,
                 })
                 .unwrap();
         }
