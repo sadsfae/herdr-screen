@@ -138,7 +138,7 @@ fn setup_options(
     )
     .unwrap();
     let status = Command::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     )
     .args(["status", "client", "--json"])
     .output()
@@ -147,7 +147,7 @@ fn setup_options(
 
     let pair = native_pty_system().openpty(PtySize::default()).unwrap();
     let mut command = CommandBuilder::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     );
     if handoff {
         command.args(["--remote", "fake-host", "--handoff"]);
@@ -302,7 +302,7 @@ fn machine_add_accepts_help_argument_order() {
     )
     .unwrap();
     let mut command = Command::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     );
     command.args(["machine", "add", "--label", "coder", "workstation.coder"]);
     // Reach remote preparation, but never execute SSH or start a server.

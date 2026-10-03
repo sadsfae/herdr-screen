@@ -78,7 +78,7 @@ fn spawn_server_with_env(
         })
         .unwrap();
     let mut cmd = CommandBuilder::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     );
     cmd.arg("server");
     cmd.env("XDG_CONFIG_HOME", config_home);
@@ -123,7 +123,7 @@ fn spawn_named_session_server(
         })
         .unwrap();
     let mut cmd = CommandBuilder::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     );
     cmd.arg("server");
     cmd.env("XDG_CONFIG_HOME", config_home);
@@ -159,7 +159,7 @@ fn spawn_default_session_server(config_home: &Path, runtime_dir: &Path) -> Spawn
         })
         .unwrap();
     let mut cmd = CommandBuilder::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     );
     cmd.arg("server");
     cmd.env("XDG_CONFIG_HOME", config_home);
@@ -202,7 +202,7 @@ fn spawn_server_with_args_and_socket_env(
         })
         .unwrap();
     let mut cmd = CommandBuilder::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     );
     if let Some(session_name) = session_name {
         cmd.arg("--session");

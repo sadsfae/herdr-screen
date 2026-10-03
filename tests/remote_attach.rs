@@ -106,7 +106,7 @@ exit 255
     let inherited_path = std::env::var("PATH").unwrap_or_default();
     let path = format!("{}:{inherited_path}", temp_dir.display());
     let child = Command::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     )
     .args(["--remote", "check-host"])
     .env("PATH", path)

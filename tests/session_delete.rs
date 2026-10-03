@@ -47,8 +47,8 @@ impl SessionConfig {
 
     fn delete(&self, name: &str) -> Output {
         Command::new(
-            std::env::var("CARGO_BIN_EXE_herdr_screen")
-                .expect("CARGO_BIN_EXE_herdr_screen not set"),
+            std::env::var("CARGO_BIN_EXE_herdr-screen")
+                .expect("CARGO_BIN_EXE_herdr-screen not set"),
         )
         .args(["session", "delete", name, "--json"])
         .env("XDG_CONFIG_HOME", &self.root)

@@ -125,7 +125,7 @@ fn spawn_client_process_with_args_and_env(
         .unwrap();
 
     let mut cmd = CommandBuilder::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     );
     cmd.args(args);
     cmd.env("HERDR_DISABLE_SOUND", "1");
@@ -187,7 +187,7 @@ fn spawn_server_with_config(
         .unwrap();
 
     let mut cmd = CommandBuilder::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     );
     cmd.arg("server");
     cmd.env("XDG_CONFIG_HOME", config_home);
@@ -439,7 +439,7 @@ fn client_sees_headless_startup_config_diagnostic() {
         .unwrap();
 
     let mut cmd = CommandBuilder::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     );
     cmd.arg("server");
     cmd.env("XDG_CONFIG_HOME", &config_home);
@@ -502,7 +502,7 @@ fn server_unreachable_shows_clear_error() {
     .unwrap();
 
     let output = std::process::Command::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     )
     .arg("client")
     .env("HERDR_DISABLE_SOUND", "1")
@@ -1041,7 +1041,7 @@ fn federated_client_starts_without_local_and_survives_its_restart() {
     fs::create_dir_all(&bin).unwrap();
     fs::create_dir_all(base.join("home")).unwrap();
     std::os::unix::fs::symlink(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
         bin.join("herdr"),
     )
     .unwrap();
@@ -2080,7 +2080,7 @@ fn client_receives_notify_on_agent_state_change() {
         .unwrap();
 
     let mut cmd = CommandBuilder::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     );
     cmd.arg("server");
     cmd.env("XDG_CONFIG_HOME", &config_home);

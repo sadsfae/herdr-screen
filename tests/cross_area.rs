@@ -118,7 +118,7 @@ fn spawn_server_with_path(
         .unwrap();
 
     let mut cmd = CommandBuilder::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     );
     cmd.arg("server");
     cmd.env("XDG_STATE_HOME", runtime_dir.join("state"));
@@ -158,7 +158,7 @@ fn spawn_client_process(
         .unwrap();
 
     let mut cmd = CommandBuilder::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     );
     cmd.arg("client");
     cmd.env("HERDR_DISABLE_SOUND", "1");

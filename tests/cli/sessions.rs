@@ -233,7 +233,7 @@ fn dead_server_cli_reports_one_session_aware_json_line() {
     let stale_socket = runtime_dir.join("stale.sock");
     drop(UnixListener::bind(&stale_socket).unwrap());
     let stale = Command::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     )
     .args(["workspace", "create"])
     .env("XDG_CONFIG_HOME", &config_home)
@@ -268,7 +268,7 @@ fn integration_commands_run_locally_when_server_is_missing() {
     );
 
     let workspace_list = Command::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     )
     .args(["workspace", "list"])
     .env("HERDR_SOCKET_PATH", &missing_socket)
@@ -278,7 +278,7 @@ fn integration_commands_run_locally_when_server_is_missing() {
     assert_eq!(workspace_list.status.code(), Some(1));
 
     let integration_install = Command::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     )
     .args(["integration", "install", "pi"])
     .env("HERDR_SOCKET_PATH", &missing_socket)
@@ -292,7 +292,7 @@ fn integration_commands_run_locally_when_server_is_missing() {
     );
 
     let integration_status = Command::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     )
     .args(["integration", "status"])
     .env("HERDR_SOCKET_PATH", &missing_socket)
@@ -305,7 +305,7 @@ fn integration_commands_run_locally_when_server_is_missing() {
     assert!(status_stdout.contains("claude: not installed"));
 
     let integration_uninstall = Command::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     )
     .args(["integration", "uninstall", "pi"])
     .env("HERDR_SOCKET_PATH", &missing_socket)
@@ -339,7 +339,7 @@ fn integration_status_outdated_only_prints_action_for_legacy_install() {
     let missing_socket = runtime_dir.join("missing.sock");
 
     let output = Command::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     )
     .args(["integration", "status", "--outdated-only"])
     .env("HERDR_SOCKET_PATH", &missing_socket)
@@ -367,7 +367,7 @@ fn integration_status_rejects_unknown_flags() {
     let missing_socket = runtime_dir.join("missing.sock");
 
     let output = Command::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     )
     .args(["integration", "status", "--wat"])
     .env("HERDR_SOCKET_PATH", &missing_socket)

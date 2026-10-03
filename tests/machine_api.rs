@@ -63,8 +63,8 @@ impl Harness {
         fs::write(root.join("bin/ssh"), SSH).unwrap();
         fs::set_permissions(root.join("bin/ssh"), fs::Permissions::from_mode(0o700)).unwrap();
         std::os::unix::fs::symlink(
-            std::env::var("CARGO_BIN_EXE_herdr_screen")
-                .expect("CARGO_BIN_EXE_herdr_screen not set"),
+            std::env::var("CARGO_BIN_EXE_herdr-screen")
+                .expect("CARGO_BIN_EXE_herdr-screen not set"),
             root.join("remote herdr"),
         )
         .unwrap();
@@ -95,8 +95,8 @@ exec "$TEST_REMOTE_HERDR" "$@"
         let local = UnixListener::bind(root.join("local.sock")).unwrap();
         local.set_nonblocking(true).unwrap();
         let status = Command::new(
-            std::env::var("CARGO_BIN_EXE_herdr_screen")
-                .expect("CARGO_BIN_EXE_herdr_screen not set"),
+            std::env::var("CARGO_BIN_EXE_herdr-screen")
+                .expect("CARGO_BIN_EXE_herdr-screen not set"),
         )
         .args(["status", "client", "--json"])
         .output()
@@ -113,8 +113,8 @@ exec "$TEST_REMOTE_HERDR" "$@"
 
     fn command(&self, args: &[&str]) -> Command {
         let mut command = Command::new(
-            std::env::var("CARGO_BIN_EXE_herdr_screen")
-                .expect("CARGO_BIN_EXE_herdr_screen not set"),
+            std::env::var("CARGO_BIN_EXE_herdr-screen")
+                .expect("CARGO_BIN_EXE_herdr-screen not set"),
         );
         command
             .args(args)
@@ -291,7 +291,7 @@ fn machine_api_bootstrap_falls_back_from_an_old_path_binary() {
     let harness = Harness::new();
     fs::create_dir_all(harness.root.join(".local/bin")).unwrap();
     std::os::unix::fs::symlink(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
         harness.root.join(".local/bin/herdr"),
     )
     .unwrap();
@@ -363,7 +363,7 @@ fn machine_api_recovers_a_stale_path_before_sending_a_mutation() {
     fs::remove_file(harness.root.join("remote bin/herdr")).unwrap();
     fs::create_dir_all(harness.root.join(".local/bin")).unwrap();
     std::os::unix::fs::symlink(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
         harness.root.join(".local/bin/herdr"),
     )
     .unwrap();

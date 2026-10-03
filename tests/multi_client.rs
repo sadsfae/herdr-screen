@@ -89,7 +89,7 @@ fn spawn_server(config: &Path, runtime: &Path, api: &Path) -> SpawnedHerdr {
         })
         .unwrap();
     let mut cmd = CommandBuilder::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     );
     cmd.arg("server");
     cmd.env("XDG_CONFIG_HOME", config);
@@ -118,7 +118,7 @@ fn spawn_client(config: &Path, runtime: &Path, api: &Path) -> SpawnedHerdr {
         })
         .unwrap();
     let mut cmd = CommandBuilder::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     );
     cmd.arg("client");
     cmd.env("HERDR_DISABLE_SOUND", "1");

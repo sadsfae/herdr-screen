@@ -126,8 +126,8 @@ async fn host_shutdown_saves_layout_before_releasing_delay_lock() {
     std::fs::write(&config, "onboarding = false\n[experimental]\nallow_nested = true\n[terminal]\ndefault_shell = \"/bin/sh\"\n").unwrap();
     let mut server = ChildGuard(
         Command::new(
-            std::env::var("CARGO_BIN_EXE_herdr_screen")
-                .expect("CARGO_BIN_EXE_herdr_screen not set"),
+            std::env::var("CARGO_BIN_EXE_herdr-screen")
+                .expect("CARGO_BIN_EXE_herdr-screen not set"),
         )
         .args(["--session", "shutdown", "server"])
         .env("XDG_CONFIG_HOME", &base)

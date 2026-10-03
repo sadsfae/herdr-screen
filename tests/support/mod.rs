@@ -760,8 +760,8 @@ fn is_test_herdr_binary(path: &Path) -> bool {
     TEST_BINARY
         .get_or_init(|| {
             fs::canonicalize(
-                std::env::var("CARGO_BIN_EXE_herdr_screen")
-                    .expect("CARGO_BIN_EXE_herdr_screen not set"),
+                std::env::var("CARGO_BIN_EXE_herdr-screen")
+                    .expect("CARGO_BIN_EXE_herdr-screen not set"),
             )
             .ok()
         })
@@ -906,8 +906,8 @@ mod tests {
     #[test]
     fn test_binary_matcher_accepts_cargo_test_binary() {
         let binary = std::fs::canonicalize(
-            std::env::var("CARGO_BIN_EXE_herdr_screen")
-                .expect("CARGO_BIN_EXE_herdr_screen not set"),
+            std::env::var("CARGO_BIN_EXE_herdr-screen")
+                .expect("CARGO_BIN_EXE_herdr-screen not set"),
         )
         .expect("Cargo-built binary must exist");
         assert!(
@@ -920,8 +920,8 @@ mod tests {
     fn test_binary_matcher_rejects_other_binaries() {
         let nested_build = Path::new(env!("CARGO_MANIFEST_DIR")).join("other/target/debug/herdr");
         let sibling_build = Path::new(
-            &std::env::var("CARGO_BIN_EXE_herdr_screen")
-                .expect("CARGO_BIN_EXE_herdr_screen not set"),
+            &std::env::var("CARGO_BIN_EXE_herdr-screen")
+                .expect("CARGO_BIN_EXE_herdr-screen not set"),
         )
         .parent()
         .unwrap()

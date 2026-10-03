@@ -259,8 +259,8 @@ fn help_commands_exit_successfully() {
 
     for args in help_cases {
         let output = Command::new(
-            std::env::var("CARGO_BIN_EXE_herdr_screen")
-                .expect("CARGO_BIN_EXE_herdr_screen not set"),
+            std::env::var("CARGO_BIN_EXE_herdr-screen")
+                .expect("CARGO_BIN_EXE_herdr-screen not set"),
         )
         .args(*args)
         .output()
@@ -280,8 +280,8 @@ fn help_commands_exit_successfully() {
 fn root_and_command_group_help_point_agents_to_plain_text_docs() {
     for args in [&["--help"][..], &["agent", "--help"][..]] {
         let output = Command::new(
-            std::env::var("CARGO_BIN_EXE_herdr_screen")
-                .expect("CARGO_BIN_EXE_herdr_screen not set"),
+            std::env::var("CARGO_BIN_EXE_herdr-screen")
+                .expect("CARGO_BIN_EXE_herdr-screen not set"),
         )
         .args(args)
         .env_remove("HERDR_SOCKET_PATH")
@@ -331,8 +331,8 @@ fn subcommand_help_explains_automation_semantics_without_a_server() {
 
     for (args, expected) in cases {
         let output = Command::new(
-            std::env::var("CARGO_BIN_EXE_herdr_screen")
-                .expect("CARGO_BIN_EXE_herdr_screen not set"),
+            std::env::var("CARGO_BIN_EXE_herdr-screen")
+                .expect("CARGO_BIN_EXE_herdr-screen not set"),
         )
         .args(*args)
         .env_remove("HERDR_SOCKET_PATH")
@@ -360,7 +360,7 @@ fn subcommand_help_explains_automation_semantics_without_a_server() {
 #[test]
 fn removed_wait_and_agent_send_commands_are_rejected() {
     let wait = Command::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     )
     .args(["wait", "output", "w1:p1", "--match", "ready"])
     .output()
@@ -368,7 +368,7 @@ fn removed_wait_and_agent_send_commands_are_rejected() {
     assert_eq!(wait.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&wait.stderr).contains("unknown command: wait"));
     let help = Command::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     )
     .arg("--help")
     .output()
@@ -376,7 +376,7 @@ fn removed_wait_and_agent_send_commands_are_rejected() {
     assert!(!String::from_utf8_lossy(&help.stdout).contains("herdr wait <subcommand>"));
 
     let send = Command::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     )
     .args(["agent", "send", "reviewer", "hello"])
     .output()
@@ -419,8 +419,8 @@ fn agent_cli_rejects_invalid_wait_and_rename_grammar_locally() {
         &["agent", "rename", "reviewer", "worker", "--clear"][..],
     ] {
         let output = Command::new(
-            std::env::var("CARGO_BIN_EXE_herdr_screen")
-                .expect("CARGO_BIN_EXE_herdr_screen not set"),
+            std::env::var("CARGO_BIN_EXE_herdr-screen")
+                .expect("CARGO_BIN_EXE_herdr-screen not set"),
         )
         .args(args)
         .env("HERDR_SOCKET_PATH", "/nonexistent/herdr.sock")
@@ -440,7 +440,7 @@ fn agent_cli_rejects_invalid_wait_and_rename_grammar_locally() {
 #[test]
 fn completion_command_prints_zsh_script_without_session_startup() {
     let output = Command::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     )
     .args(["completion", "zsh"])
     .env_remove("HERDR_SOCKET_PATH")
@@ -474,7 +474,7 @@ fn completion_command_prints_zsh_script_without_session_startup() {
 #[test]
 fn root_help_hides_explicit_client_command() {
     let output = Command::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     )
     .arg("--help")
     .output()
@@ -491,7 +491,7 @@ fn root_help_hides_explicit_client_command() {
 #[test]
 fn root_help_advertises_api_schema_command_group() {
     let output = Command::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     )
     .arg("--help")
     .output()
@@ -508,7 +508,7 @@ fn root_help_advertises_api_schema_command_group() {
 #[test]
 fn api_schema_default_output_is_a_short_summary() {
     let output = Command::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     )
     .args(["api", "schema"])
     .output()
@@ -530,7 +530,7 @@ fn api_schema_default_output_is_a_short_summary() {
 #[test]
 fn api_schema_json_prints_bundled_schema() {
     let output = Command::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     )
     .args(["api", "schema", "--json"])
     .output()
@@ -593,7 +593,7 @@ fn api_schema_output_writes_bundled_schema_to_file() {
     let schema_path = base.join("herdr-api.schema.json");
 
     let output = Command::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     )
     .args(["api", "schema", "--output"])
     .arg(&schema_path)
@@ -622,7 +622,7 @@ fn explicit_client_command_respects_nested_guard() {
     fs::create_dir_all(&base).unwrap();
 
     let output = Command::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     )
     .arg("client")
     .env("HERDR_ENV", "1")
@@ -644,7 +644,7 @@ fn explicit_client_command_respects_nested_guard() {
 #[test]
 fn removed_show_changelog_flag_fails_before_nested_guard() {
     let output = Command::new(
-        std::env::var("CARGO_BIN_EXE_herdr_screen").expect("CARGO_BIN_EXE_herdr_screen not set"),
+        std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
     )
     .arg("--show-changelog")
     .env("HERDR_ENV", "1")
