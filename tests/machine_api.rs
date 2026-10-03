@@ -62,8 +62,11 @@ impl Harness {
         fs::create_dir_all(root.join("bin")).unwrap();
         fs::write(root.join("bin/ssh"), SSH).unwrap();
         fs::set_permissions(root.join("bin/ssh"), fs::Permissions::from_mode(0o700)).unwrap();
-        std::os::unix::fs::symlink(env!("CARGO_BIN_EXE_herdr_screen"), root.join("remote herdr"))
-            .unwrap();
+        std::os::unix::fs::symlink(
+            env!("CARGO_BIN_EXE_herdr_screen"),
+            root.join("remote herdr"),
+        )
+        .unwrap();
         fs::create_dir_all(root.join("remote bin")).unwrap();
         let remote_wrapper = root.join("remote bin/herdr");
         fs::write(
