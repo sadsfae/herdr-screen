@@ -1,5 +1,6 @@
 //! Cross-area integration tests for end-to-end persistence flows.
 
+#![allow(clippy::env_cargo_bin_exe)]
 #![cfg(unix)]
 
 pub mod support;

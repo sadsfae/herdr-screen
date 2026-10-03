@@ -24,12 +24,6 @@ include = [
 members = ["crates/ghostty-vt"]
 default-members = [".", "crates/ghostty-vt"]
 
-# Clippy false-positive: env_cargo_bin_exe does not recognize CARGO_BIN_EXE_*
-# for creates a bin whose name contains a hyphen (herdr-screen -> herdr_screen).
-# The env!() usage is correct; allow the lint.
-[lints.clippy]
-env_cargo_bin_exe = "allow"
-
 [dependencies]
 ghostty-vt = { path = "crates/ghostty-vt" }
 base64 = "0.22.1"

@@ -1,5 +1,6 @@
 //! Integration tests for headless server mode.
 
+#![allow(clippy::env_cargo_bin_exe)]
 #![cfg(unix)]
 
 pub mod support;

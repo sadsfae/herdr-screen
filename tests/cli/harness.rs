@@ -1,3 +1,4 @@
+#![allow(clippy::env_cargo_bin_exe)]
 pub(super) use std::fs;
 pub(super) use std::io::{BufRead, BufReader, Write};
 pub(super) use std::os::unix::net::{UnixListener, UnixStream};

@@ -1,3 +1,4 @@
+#![allow(clippy::env_cargo_bin_exe)]
 #![cfg(unix)]
 
 use std::os::fd::{FromRawFd, OwnedFd};

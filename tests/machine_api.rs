@@ -1,3 +1,4 @@
+#![allow(clippy::env_cargo_bin_exe)]
 #![cfg(all(unix, not(target_os = "macos")))]
 
 use std::fs;

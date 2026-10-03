@@ -1,3 +1,4 @@
+#![allow(clippy::env_cargo_bin_exe)]
 use std::fs;
 use std::path::PathBuf;
 use std::process::{Command, Output};

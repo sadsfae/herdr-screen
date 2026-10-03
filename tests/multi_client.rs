@@ -1,5 +1,6 @@
 //! Gate B integration tests for the ClientShell protocol.
 
+#![allow(clippy::env_cargo_bin_exe)]
 #![cfg(unix)]
 
 pub mod support;

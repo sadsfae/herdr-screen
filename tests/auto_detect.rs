@@ -1,5 +1,6 @@
 //! Integration tests for auto-detect launch behavior.
 
+#![allow(clippy::env_cargo_bin_exe)]
 #![cfg(all(unix, not(target_os = "macos")))]
 
 pub mod support;
