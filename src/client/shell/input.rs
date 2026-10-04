@@ -612,6 +612,22 @@ impl ClientShellState {
                     self.record_binding(binding, outcome);
                     return None;
                 }
+                if let Some(prefix_key) = self.config.keybinds.literal_prefix_key(key) {
+                    self.mode = return_mode;
+                    outcome.repaint = true;
+                    if return_mode == ClientShellMode::Terminal {
+                        if let Some(pane_id) = self.focused_pane_id() {
+                            let target = ClientInputTarget::Pane(pane_id);
+                            self.push_pane_key(target.clone(), prefix_key.clone(), outcome);
+                            self.push_pane_key(
+                                target,
+                                prefix_key.with_kind(KeyEventKind::Release),
+                                outcome,
+                            );
+                        }
+                    }
+                    return None;
+                }
                 self.mode = return_mode;
                 outcome.repaint = true;
                 None

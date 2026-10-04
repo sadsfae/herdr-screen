@@ -35,6 +35,23 @@ impl LiveKeybindConfig {
         self.prefix.first().copied()
     }
 
+    /// GNU screen's `meta` escape: when `key` is the bare, unmodified
+    /// character of a configured prefix (e.g. `a` after `ctrl+a`, `b` after
+    /// `ctrl+b`), return that prefix key so the client can send a literal
+    /// copy of it to the pane.
+    pub fn literal_prefix_key(&self, key: &TerminalKey) -> Option<TerminalKey> {
+        let (code, modifiers) = normalize_key_combo((key.code, key.modifiers));
+        if !modifiers.is_empty() {
+            return None;
+        }
+        self.prefix
+            .iter()
+            .find(|(prefix_code, prefix_modifiers)| {
+                normalize_key_combo((*prefix_code, *prefix_modifiers)).0 == code
+            })
+            .map(|(code, modifiers)| TerminalKey::new(*code, *modifiers))
+    }
+
     /// Primary prefix rendered for the compact status bar.
     pub fn primary_prefix_label(&self) -> String {
         self.primary_prefix()

@@ -399,7 +399,8 @@ pub struct KeysConfig {
     pub previous_tab: BindingConfig,
     /// Select the next tab. Default: "prefix+n".
     pub next_tab: BindingConfig,
-    /// Focus the last focused tab, like screen's C-a C-a. Unset by default.
+    /// Focus the last focused tab, like screen's C-a C-a. Default:
+    /// "prefix+prefix"; empty restores the double-prefix literal prefix passthrough.
     pub last_tab: BindingConfig,
     /// Move the active tab one position toward the front. Unset by default.
     pub move_tab_previous: BindingConfig,

@@ -845,3 +845,88 @@ fn double_prefix_without_binding_keeps_passing_literal_prefix_to_pane() {
         [ClientMessage::ClientShellPaneInput { pane_id, .. }] if pane_id == "pane_1"
     ));
 }
+
+#[test]
+fn screen_style_prefix_then_prefix_char_sends_literal_prefix_to_pane() {
+    let mut config = Config::default();
+    config.keys.prefix = crate::config::BindingConfig::One("ctrl+a".to_owned());
+    config.keys.last_tab = crate::config::BindingConfig::One("prefix+prefix".to_owned());
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+    state.set_snapshot(Box::new(snapshot()));
+
+    let _ = state.handle_raw_events(vec![RawInputEvent::Key(crate::input::TerminalKey::new(
+        KeyCode::Char('a'),
+        KeyModifiers::CONTROL,
+    ))]);
+    assert_eq!(state.mode, ClientShellMode::Prefix);
+
+    let second_key = state.handle_raw_events(vec![RawInputEvent::Key(
+        crate::input::TerminalKey::new(KeyCode::Char('a'), KeyModifiers::empty()),
+    )]);
+    assert_eq!(state.mode, ClientShellMode::Terminal);
+    assert!(matches!(
+        &second_key.requests[..],
+        [ClientMessage::ClientShellPaneInput { pane_id, events }]
+            if pane_id == "pane_1"
+                && matches!(
+                    &events[..],
+                    [
+                        ClientPaneInputEvent::Key {
+                            code: crate::protocol::ClientKeyCode::Char('a'),
+                            modifiers,
+                            kind: crate::protocol::ClientKeyKind::Press,
+                            ..
+                        },
+                        ClientPaneInputEvent::Key {
+                            code: crate::protocol::ClientKeyCode::Char('a'),
+                            modifiers: release_modifiers,
+                            kind: crate::protocol::ClientKeyKind::Release,
+                            ..
+                        },
+                    ] if *modifiers == KeyModifiers::CONTROL.bits()
+                        && *release_modifiers == KeyModifiers::CONTROL.bits()
+                )
+    ));
+}
+
+#[test]
+fn copy_mode_prefix_then_prefix_char_does_not_inject_into_pane() {
+    let mut config = Config::default();
+    config.keys.prefix = crate::config::BindingConfig::One("ctrl+a".to_owned());
+    config.keys.last_tab = crate::config::BindingConfig::One("prefix+prefix".to_owned());
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+    state.set_snapshot(Box::new(snapshot()));
+    state.mode = ClientShellMode::Copy;
+    state.copy_mode = Some(ClientCopyModeState {
+        pane_id: "pane_1".into(),
+        content_revision: 0,
+        geometry: (80, 24),
+        alternate_screen_active: false,
+        cursor: crate::api::schema::PaneTextPoint { row: 0, col: 0 },
+        offset_from_bottom: 0,
+        max_offset_from_bottom: 0,
+        entry_offset_from_bottom: 0,
+        selection: None,
+        search_prompt: None,
+        search_query: String::new(),
+        search_direction: None,
+        search_matches: Vec::new(),
+        search_total: 0,
+        search_current: None,
+        search_current_global: None,
+        search_generation: 0,
+        copy_after_search: false,
+    });
+
+    let _ = state.handle_raw_events(vec![RawInputEvent::Key(crate::input::TerminalKey::new(
+        KeyCode::Char('a'),
+        KeyModifiers::CONTROL,
+    ))]);
+    assert_eq!(state.mode, ClientShellMode::Prefix);
+
+    let second_key = state.handle_raw_events(vec![RawInputEvent::Key(
+        crate::input::TerminalKey::new(KeyCode::Char('a'), KeyModifiers::empty()),
+    )]);
+    assert_eq!(state.mode, ClientShellMode::Copy);
+    assert!(second_key.requests.is_empty());
+}

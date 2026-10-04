@@ -16,6 +16,13 @@ Initial herdr-screen release: a GNU screen edition hard fork of Herdr 0.9.3
 
 ## Unreleased
 
+### Fixed
+- `ctrl+a a` (prefix followed by the bare prefix key) now sends a literal
+  `ctrl+a` to the shell, like GNU screen's `meta` binding, so readline's
+  start-of-line jump works again. `ctrl+a ctrl+a` still toggles the last
+  focused tab (`keys.last_tab = "prefix+prefix"`), and with `keys.last_tab`
+  unset the double prefix still forwards the literal prefix as before.
+
 ## [0.2.0] - 2026-10-01
 
 ### Added
