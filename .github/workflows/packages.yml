@@ -29,6 +29,7 @@ jobs:
     timeout-minutes: 90
     outputs:
       version: ${{ steps.version.outputs.value }}
+      bumped: ${{ steps.version.outputs.bumped }}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -164,6 +165,58 @@ jobs:
           tag="v${version}-${GITHUB_SHA::7}"
           gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
             --title "$tag" --notes "Built from ${GITHUB_SHA::7}" dist/*
+
+  # Build the Arch package from packaging/AUR/PKGBUILD in an Arch container
+  # and attach the resulting .pkg.tar.zst to the same release, so Arch and
+  # derivative users can install the prebuilt package or build it themselves
+  # with makepkg - no AUR account needed.
+  arch-package:
+    needs: build
+    if: needs.build.outputs.bumped == 'true'
+    runs-on: ubuntu-latest
+    container: archlinux/archlinux:base-devel
+    timeout-minutes: 90
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      PKGVER_OVERRIDE: ${{ needs.build.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Rust, Zig, and build tooling
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm git rust zig
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+
+      - name: Build package
+        run: |
+          mkdir -p /home/builder/build
+          cp packaging/AUR/PKGBUILD /home/builder/build/
+          chown -R builder:builder /home/builder/build
+          su builder -c 'cd /home/builder/build && makepkg -s --noconfirm'
+
+      - name: Attach package to release
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            tag="v${VERSION}-${GITHUB_SHA::7}"
+          fi
+          pkg="$(ls /home/builder/build/*.pkg.tar.zst)"
+          release_id="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/tags/$tag" \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary "@$pkg" \
+            "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$release_id/assets?name=$(basename "$pkg")"
 
   # Keep the README install commands and RELEASE_VERSION pointing at the
   # version actually published by the build job. Runs after every build so

@@ -53,6 +53,7 @@ describe("fork publishing workflow boundaries", () => {
     const jobs = load("packages").jobs;
     expect(jobs?.build?.outputs).toEqual({
       version: "${{ steps.version.outputs.value }}",
+      bumped: "${{ steps.version.outputs.bumped }}",
     });
     const build = findStep(jobs, "build", "Build artifacts");
     expect(build.if).toContain("bumped == 'true'");
@@ -60,5 +61,8 @@ describe("fork publishing workflow boundaries", () => {
     expect(publish.if).toContain("bumped == 'true'");
     const pin = findStep(jobs, "sync-readme", "Pin README and push");
     expect(pin.env?.VERSION).toBe("${{ needs.build.outputs.version }}");
+    const arch = findStep(jobs, "arch-package", "Attach package to release");
+    expect(arch).toBeTruthy();
+    expect(jobs?.["arch-package"]?.["if"]).toContain("bumped == 'true'");
   });
 });
