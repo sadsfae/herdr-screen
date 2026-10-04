@@ -213,7 +213,7 @@ jobs:
           else
             tag="v${VERSION}-${GITHUB_SHA::7}"
           fi
-          pkg="$(ls /home/builder/build/*.pkg.tar.zst)"
+          pkg="$(ls /home/builder/build/*.pkg.tar.zst | grep -v -- '-debug-' | head -1)"
           release_id="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
             "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/tags/$tag" \
             | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
