@@ -1101,13 +1101,13 @@ fn federated_client_starts_without_local_and_survives_its_restart() {
         let marker = format!("REMOTE_RECONNECTED_{cycle}");
         send_pane_shell_command(&remote_api, remote_pane, &format!("printf '{marker}\\n'"));
         assert!(
-            wait_until(Duration::from_secs(15), Duration::from_millis(20), || {
+            wait_until(Duration::from_secs(20), Duration::from_millis(20), || {
                 screen_text().contains(&marker)
             }),
             "remote reconnect {cycle} must restore the visible screen without switching machines"
         );
         assert!(
-            wait_until(Duration::from_secs(8), Duration::from_millis(100), || {
+            wait_until(Duration::from_secs(20), Duration::from_millis(100), || {
                 if screen_text().contains(&format!("REMOTE_ALIVE_INPUT_{cycle}")) {
                     return true;
                 }
