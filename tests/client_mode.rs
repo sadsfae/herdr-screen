@@ -1042,7 +1042,7 @@ fn federated_client_starts_without_local_and_survives_its_restart() {
     fs::create_dir_all(base.join("home")).unwrap();
     std::os::unix::fs::symlink(
         std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
-        bin.join("herdr"),
+        bin.join("herdr-screen"),
     )
     .unwrap();
     let quote =

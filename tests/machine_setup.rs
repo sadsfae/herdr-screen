@@ -20,8 +20,8 @@ if [ "$FAKE_STRICT_HOST_KEY_FAILURE" = yes ] && [ "$strict_host_key_check" = yes
     echo 'Host key verification failed.' >&2
     exit 255
 fi
-if [ "$last" = 'command -v herdr' ]; then
-    if [ "$FAKE_INSTALLED" != missing ]; then echo /home/remote/.local/bin/herdr; fi
+if [ "$last" = 'command -v herdr-screen' ]; then
+    if [ "$FAKE_INSTALLED" != missing ]; then echo /home/remote/.local/bin/herdr-screen; fi
     exit 0
 fi
 case "$last" in
@@ -36,7 +36,7 @@ case "$script" in
     *'uname -s'*) echo platform >>"$FAKE_ROOT/probes"; uname -s; uname -m ;;
     *'version='*)
         echo candidates >>"$FAKE_ROOT/probes"
-        if [ "$FAKE_INSTALLED" != missing ]; then echo /home/remote/.local/bin/herdr; fi ;;
+        if [ "$FAKE_INSTALLED" != missing ]; then echo /home/remote/.local/bin/herdr-screen; fi ;;
     *'status client --json'*)
         if [ "$FAKE_INSTALLED" = new ] || [ -f "$FAKE_ROOT/installed" ]; then
             printf '%s\n' "$FAKE_CLIENT_STATUS"
@@ -62,7 +62,7 @@ case "$script" in
         echo start >>"$FAKE_ROOT/actions"; echo 'test startup failure' >&2; exit 1 ;;
     *'mkdir -p'*) printf '/fake/tmp\000/fake/herdr\000' ;;
     *'chmod 755'*) echo install >>"$FAKE_ROOT/actions"; touch "$FAKE_ROOT/installed" ;;
-    *'command -v herdr'*) if [ "$FAKE_INSTALLED" != missing ]; then echo /home/remote/.local/bin/herdr; fi ;;
+    *'command -v herdr-screen'*) if [ "$FAKE_INSTALLED" != missing ]; then echo /home/remote/.local/bin/herdr-screen; fi ;;
     *'test -x '*) exit 1 ;;
     *) echo "unexpected fake SSH script: $script" >&2; exit 1 ;;
 esac

@@ -2,7 +2,6 @@
 
 use super::{args::*, process::wait_with_output_timeout, restart_policy::*, shell_quote};
 use base64::Engine as _;
-use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::io::{self, IsTerminal, Read as _, Write as _};
 use std::path::{Path, PathBuf};
@@ -29,9 +28,10 @@ const NONINTERACTIVE_SSH_COMMAND_TIMEOUT: Duration = Duration::from_secs(15);
 const NONINTERACTIVE_SSH_STDERR_LIMIT: usize = 16 * 1024;
 const BRIDGE_FAILURE_REPORT_TIMEOUT: Duration = Duration::from_secs(1);
 const REMOTE_SERVER_SHUTDOWN_POLL_INTERVAL: Duration = Duration::from_millis(100);
+#[cfg(test)]
 const CURRENT_PROTOCOL: u32 = crate::protocol::PROTOCOL_VERSION;
-const STABLE_UPDATE_MANIFEST_URL: &str = "https://herdr.dev/latest.json";
-const PREVIEW_UPDATE_MANIFEST_URL: &str = "https://herdr.dev/preview.json";
+const REMOTE_RELEASE_DOWNLOAD_URL: &str =
+    "https://github.com/sadsfae/herdr-screen/releases/latest/download";
 const REMOTE_BINARY_ENV_VAR: &str = "HERDR_REMOTE_BINARY";
 const REMOTE_OUTPUT_READY_MARKER: &str = "herdr-remote-output-ready:1";
 const WINDOWS_REMOTE_PATH_MARKER: &str = "herdr-remote-path:1:";
@@ -44,7 +44,7 @@ pub(crate) fn run_remote(remote: RemoteLaunch) -> io::Result<()> {
     let local_socket = local_forward_socket_path(&remote.target, &session_name);
     let program = std::env::args()
         .next()
-        .unwrap_or_else(|| "herdr".to_string());
+        .unwrap_or_else(|| "herdr-screen".to_string());
     let reattach_command = reattach_command(
         &program,
         &remote.target,
@@ -113,7 +113,7 @@ pub(crate) fn check_saved_ssh(target: &str, session: &str) -> io::Result<()> {
             Ok(())
         }
         _ => Err(io::Error::other(format!(
-            "remote Herdr server is stopped or incompatible; run `{}`",
+            "remote herdr-screen server is stopped or incompatible; run `{}`",
             super::saved_ssh_bootstrap_command(target, session),
         ))),
     }
@@ -180,7 +180,7 @@ impl SavedSshSetup {
             }
         }
         Err(io::Error::other(format!(
-            "could not discover remote Herdr sessions: {failure}; specify --remote-session to continue"
+            "could not discover remote herdr-screen sessions: {failure}; specify --remote-session to continue"
         )))
     }
 
@@ -452,10 +452,10 @@ impl RemoteHerdr {
         let (install_suffix, executable) = if platform.is_windows() {
             (
                 String::new(),
-                RemoteExecutable::WindowsPath("herdr.exe".to_string()),
+                RemoteExecutable::WindowsPath("herdr-screen.exe".to_string()),
             )
         } else {
-            let install_suffix = ".local/bin/herdr".to_string();
+            let install_suffix = ".local/bin/herdr-screen".to_string();
             let shell_path = format!("\"$HOME/{install_suffix}\"");
             (install_suffix, RemoteExecutable::PosixShellPath(shell_path))
         };
@@ -524,113 +524,6 @@ fn windows_powershell_script_command(script: &str) -> String {
         .collect::<Vec<_>>();
     let encoded = base64::engine::general_purpose::STANDARD.encode(utf16);
     format!("powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand {encoded}")
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(untagged)]
-enum RemoteAssetRef {
-    Url(String),
-    Object { url: String, sha256: Option<String> },
-}
-
-impl RemoteAssetRef {
-    fn url(&self) -> &str {
-        match self {
-            Self::Url(url) => url,
-            Self::Object { url, .. } => url,
-        }
-    }
-
-    fn sha256(&self) -> Option<&str> {
-        match self {
-            Self::Url(_) => None,
-            Self::Object { sha256, .. } => {
-                sha256.as_deref().filter(|value| !value.trim().is_empty())
-            }
-        }
-    }
-}
-
-#[derive(Deserialize)]
-struct RemoteUpdateManifest {
-    version: String,
-    protocol: Option<u32>,
-    assets: BTreeMap<String, RemoteAssetRef>,
-    #[serde(default)]
-    sha256: BTreeMap<String, String>,
-    #[serde(default, deserialize_with = "deserialize_remote_manifest_releases")]
-    releases: BTreeMap<String, RemoteReleaseMetadata>,
-}
-
-#[derive(Deserialize)]
-struct RemoteReleaseMetadata {
-    protocol: Option<u32>,
-    #[serde(default)]
-    assets: BTreeMap<String, RemoteAssetRef>,
-    #[serde(default)]
-    sha256: BTreeMap<String, String>,
-}
-
-#[derive(Deserialize)]
-struct RemotePreviewManifest {
-    build_id: String,
-    protocol: u32,
-    assets: BTreeMap<String, RemoteAssetRef>,
-    #[serde(default)]
-    builds: BTreeMap<String, RemotePreviewBuildMetadata>,
-}
-
-#[derive(Deserialize)]
-struct RemotePreviewBuildMetadata {
-    protocol: u32,
-    assets: BTreeMap<String, RemoteAssetRef>,
-}
-
-fn deserialize_remote_manifest_releases<'de, D>(
-    deserializer: D,
-) -> Result<BTreeMap<String, RemoteReleaseMetadata>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
-    Ok(match value {
-        Some(serde_json::Value::Object(object)) => object
-            .into_iter()
-            .filter_map(|(version, release)| {
-                serde_json::from_value::<RemoteReleaseMetadata>(release)
-                    .ok()
-                    .map(|metadata| (version, metadata))
-            })
-            .collect(),
-        _ => BTreeMap::new(),
-    })
-}
-
-impl RemoteUpdateManifest {
-    fn release_for_version(&self, version: &str) -> Option<RemoteManifestReleaseRef<'_>> {
-        if self.version.trim_start_matches('v') == version {
-            return Some(RemoteManifestReleaseRef {
-                protocol: self.protocol,
-                assets: &self.assets,
-                sha256: &self.sha256,
-            });
-        }
-
-        self.releases.get(version).and_then(|release| {
-            (!release.assets.is_empty()).then_some(RemoteManifestReleaseRef {
-                protocol: release.protocol,
-                assets: &release.assets,
-                sha256: &release.sha256,
-            })
-        })
-    }
-}
-
-#[derive(Clone, Copy)]
-struct RemoteManifestReleaseRef<'a> {
-    protocol: Option<u32>,
-    assets: &'a BTreeMap<String, RemoteAssetRef>,
-    sha256: &'a BTreeMap<String, String>,
 }
 
 fn current_version() -> String {
@@ -967,7 +860,7 @@ impl RemoteSsh {
                 )?;
                 self.copy_windows_file(
                     source_path,
-                    &format!(r"{remote_dir}\herdr-windows-x86_64.zip"),
+                    &format!(r"{remote_dir}\herdr-screen-windows-x86_64.zip"),
                 )?;
 
                 let output = self.framed_user_shell_output(&windows_remote_install_command(
@@ -1144,10 +1037,11 @@ fn windows_scp_target(target: &str, remote_path: &str) -> String {
 
 fn windows_remote_install_command(remote_dir: &str, identity: &str, sha256: &str) -> String {
     let installer = crate::platform::quote_powershell_arg(&format!(r"{remote_dir}\install.ps1"));
-    let package =
-        crate::platform::quote_powershell_arg(&format!(r"{remote_dir}\herdr-windows-x86_64.zip"));
+    let package = crate::platform::quote_powershell_arg(&format!(
+        r"{remote_dir}\herdr-screen-windows-x86_64.zip"
+    ));
     windows_powershell_script_command(&format!(
-        r#"$herdrInstaller = {installer}; $herdrPackage = {package}; & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $herdrInstaller -Channel {channel} -LocalPackagePath $herdrPackage -LocalPackageFormat zip -LocalPackageIdentity {identity} -LocalPackageSha256 {sha256}; if ($LASTEXITCODE -ne 0) {{ exit $LASTEXITCODE }}; $herdrHome = if ([string]::IsNullOrWhiteSpace($env:HERDR_HOME)) {{ Join-Path $env:USERPROFILE '.herdr' }} else {{ $env:HERDR_HOME }}; $activeJunction = Join-Path $herdrHome 'packages\standalone\current'; $activeTarget = [string](Get-Item -LiteralPath $activeJunction -Force -ErrorAction Stop).Target; if ([string]::IsNullOrWhiteSpace($activeTarget)) {{ throw 'Herdr installer did not activate a concrete release.' }}; $installedHerdr = Join-Path $activeTarget 'herdr.exe'; if (-not (Test-Path -LiteralPath $installedHerdr -PathType Leaf)) {{ throw 'Herdr installer result does not contain herdr.exe.' }}; $encodedResult = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes([System.IO.Path]::GetFullPath($installedHerdr))); [Console]::Out.WriteLine('{WINDOWS_REMOTE_INSTALL_RESULT_MARKER}' + $encodedResult); exit 0"#,
+        r#"$herdrInstaller = {installer}; $herdrPackage = {package}; & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $herdrInstaller -Channel {channel} -LocalPackagePath $herdrPackage -LocalPackageFormat zip -LocalPackageIdentity {identity} -LocalPackageSha256 {sha256}; if ($LASTEXITCODE -ne 0) {{ exit $LASTEXITCODE }}; $herdrHome = if ([string]::IsNullOrWhiteSpace($env:HERDR_HOME)) {{ Join-Path $env:USERPROFILE '.herdr' }} else {{ $env:HERDR_HOME }}; $activeJunction = Join-Path $herdrHome 'packages\standalone\current'; $activeTarget = [string](Get-Item -LiteralPath $activeJunction -Force -ErrorAction Stop).Target; if ([string]::IsNullOrWhiteSpace($activeTarget)) {{ throw 'Herdr installer did not activate a concrete release.' }}; $installedHerdr = Join-Path $activeTarget 'herdr-screen.exe'; if (-not (Test-Path -LiteralPath $installedHerdr -PathType Leaf)) {{ throw 'Herdr installer result does not contain herdr-screen.exe.' }}; $encodedResult = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes([System.IO.Path]::GetFullPath($installedHerdr))); [Console]::Out.WriteLine('{WINDOWS_REMOTE_INSTALL_RESULT_MARKER}' + $encodedResult); exit 0"#,
         channel = crate::platform::quote_powershell_arg(current_channel()),
         identity = crate::platform::quote_powershell_arg(identity),
         sha256 = crate::platform::quote_powershell_arg(sha256),
@@ -1352,7 +1246,7 @@ fn prepare_discovered_remote_herdr(
 
     if !remote_binary_supports_endpoint_requirement(ssh, &remote_herdr, require_surface_interest)? {
         return Err(io::Error::other(format!(
-            "installed remote herdr at {}, but it does not support saved SSH endpoint federation",
+            "installed remote herdr-screen at {}, but it does not support saved SSH endpoint federation",
             remote_herdr.executable.display()
         )));
     }
@@ -1379,7 +1273,7 @@ pub(super) fn find_installed_remote_herdr(ssh: &RemoteSsh) -> io::Result<RemoteH
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
         format!(
-            "matching Herdr is not ready on {}; run `herdr --remote {}` interactively to install or update it",
+            "matching herdr-screen is not ready on {}; run `herdr-screen --remote {}` interactively to install or update it",
             ssh.target(),
             ssh.target()
         ),
@@ -1394,19 +1288,17 @@ fn prepare_windows_remote_herdr(
     require_surface_interest: bool,
 ) -> io::Result<PreparedRemoteHerdr> {
     let override_package = remote_binary_override_path()?;
-    let custom_package = override_package.is_some();
-    if !custom_package {
-        for candidate in candidates {
-            if remote_binary_supports_endpoint_requirement(
-                ssh,
-                candidate,
-                require_surface_interest,
-            )? {
-                return Ok(PreparedRemoteHerdr {
-                    remote_herdr: candidate.clone(),
-                    stop_after_install_approved: false,
-                });
-            }
+    if override_package.is_some() {
+        return Err(io::Error::other(
+            "herdr-screen does not support Windows remote installation (no published Windows package); install herdr-screen on the remote host manually",
+        ));
+    }
+    for candidate in candidates {
+        if remote_binary_supports_endpoint_requirement(ssh, candidate, require_surface_interest)? {
+            return Ok(PreparedRemoteHerdr {
+                remote_herdr: candidate.clone(),
+                stop_after_install_approved: false,
+            });
         }
     }
 
@@ -1424,20 +1316,16 @@ fn prepare_windows_remote_herdr(
         confirm_remote_install(
             &ssh.destination(),
             &remote_herdr,
-            &install_source_description(&remote_herdr.platform, override_package.as_deref()),
+            &install_source_description(&remote_herdr.platform, None),
         )?;
     }
-    // Windows needs the complete package, including its app-local ConPTY runtime.
-    let source = match override_package {
-        Some(path) => InstallSource::persistent(path),
-        None => download_release_asset(&remote_herdr.platform)?,
-    };
+    let source = download_release_asset(&remote_herdr.platform)?;
     let install_result = (|| {
         let sha256 = crate::checksum::file_sha256(&source.path)?;
         ssh.install_windows_herdr(
             &remote_herdr,
             &source.path,
-            &windows_package_identity(custom_package, &sha256),
+            &windows_package_identity(false, &sha256),
             &sha256,
         )
     })();
@@ -1445,7 +1333,7 @@ fn prepare_windows_remote_herdr(
     let remote_herdr = install_result?;
     if !remote_binary_supports_endpoint_requirement(ssh, &remote_herdr, require_surface_interest)? {
         return Err(io::Error::other(format!(
-            "installed remote herdr at {}, but it does not support the required remote hosting capabilities",
+            "installed remote herdr-screen at {}, but it does not support the required remote hosting capabilities",
             remote_herdr.executable.display()
         )));
     }
@@ -1473,7 +1361,7 @@ pub(super) fn discover_remote_api_metadata(
         if !metadata.is_valid() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                "invalid remote Herdr executable path",
+                "invalid remote herdr-screen executable path",
             ));
         }
         return Ok(metadata);
@@ -1497,7 +1385,7 @@ pub(super) fn discover_remote_api_metadata(
     }
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
-        "remote Herdr does not support machine API forwarding; update Herdr on this machine",
+        "remote herdr-screen does not support machine API forwarding; update herdr-screen on this machine",
     ))
 }
 
@@ -1614,7 +1502,7 @@ fn remote_binary_candidates(
 
 fn windows_remote_binary_candidate_command() -> String {
     windows_powershell_script_command(&format!(
-        r#"function Emit-HerdrPath([string]$CandidatePath) {{ if ([string]::IsNullOrWhiteSpace($CandidatePath) -or -not (Test-Path -LiteralPath $CandidatePath -PathType Leaf)) {{ return }}; $candidateFullPath = [System.IO.Path]::GetFullPath($CandidatePath); $encodedCandidate = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($candidateFullPath)); [Console]::Out.WriteLine('{WINDOWS_REMOTE_PATH_MARKER}' + $encodedCandidate) }}; $pathCommand = Get-Command herdr.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1; if ($null -ne $pathCommand) {{ Emit-HerdrPath $pathCommand.Source }}; $userSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; Get-CimInstance Win32_Process -Filter "Name = 'herdr.exe' OR Name = 'herdr-dev.exe'" -ErrorAction SilentlyContinue | ForEach-Object {{ $owner = Invoke-CimMethod -InputObject $_ -MethodName GetOwnerSid -ErrorAction SilentlyContinue; if ($owner.ReturnValue -eq 0 -and $owner.Sid -eq $userSid) {{ Emit-HerdrPath $_.ExecutablePath }} }}; $herdrHome = if ([string]::IsNullOrWhiteSpace($env:HERDR_HOME)) {{ Join-Path $env:USERPROFILE '.herdr' }} else {{ $env:HERDR_HOME }}; $activeJunction = Get-Item -LiteralPath (Join-Path $herdrHome 'packages\standalone\current') -Force -ErrorAction SilentlyContinue; if ($null -ne $activeJunction -and -not [string]::IsNullOrWhiteSpace([string]$activeJunction.Target)) {{ Emit-HerdrPath (Join-Path ([string]$activeJunction.Target) 'herdr.exe') }}; exit 0"#
+        r#"function Emit-HerdrPath([string]$CandidatePath) {{ if ([string]::IsNullOrWhiteSpace($CandidatePath) -or -not (Test-Path -LiteralPath $CandidatePath -PathType Leaf)) {{ return }}; $candidateFullPath = [System.IO.Path]::GetFullPath($CandidatePath); $encodedCandidate = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($candidateFullPath)); [Console]::Out.WriteLine('{WINDOWS_REMOTE_PATH_MARKER}' + $encodedCandidate) }}; $pathCommand = Get-Command herdr-screen.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1; if ($null -ne $pathCommand) {{ Emit-HerdrPath $pathCommand.Source }}; $userSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; Get-CimInstance Win32_Process -Filter "Name = 'herdr-screen.exe'" -ErrorAction SilentlyContinue | ForEach-Object {{ $owner = Invoke-CimMethod -InputObject $_ -MethodName GetOwnerSid -ErrorAction SilentlyContinue; if ($owner.ReturnValue -eq 0 -and $owner.Sid -eq $userSid) {{ Emit-HerdrPath $_.ExecutablePath }} }}; $herdrHome = if ([string]::IsNullOrWhiteSpace($env:HERDR_HOME)) {{ Join-Path $env:USERPROFILE '.herdr' }} else {{ $env:HERDR_HOME }}; $activeJunction = Get-Item -LiteralPath (Join-Path $herdrHome 'packages\standalone\current') -Force -ErrorAction SilentlyContinue; if ($null -ne $activeJunction -and -not [string]::IsNullOrWhiteSpace([string]$activeJunction.Target)) {{ Emit-HerdrPath (Join-Path ([string]$activeJunction.Target) 'herdr-screen.exe') }}; exit 0"#
     ))
 }
 
@@ -1658,34 +1546,33 @@ emit() {
     fi
 }
 if [ -n "$home" ]; then
-    emit "$home/.local/bin/herdr"
+    emit "$home/.local/bin/herdr-screen"
 fi
 "#,
     );
     if platform.os == "macos" {
         script.push_str(
-            r#"    emit "/opt/homebrew/bin/herdr"
-    emit "/usr/local/bin/herdr"
+            r#"    emit "/opt/homebrew/bin/herdr-screen"
+    emit "/usr/local/bin/herdr-screen"
 "#,
         );
     } else if platform.os == "linux" {
         script.push_str(
-            r#"    emit "/home/linuxbrew/.linuxbrew/bin/herdr"
+            r#"    emit "/home/linuxbrew/.linuxbrew/bin/herdr-screen"
 "#,
         );
     }
     script.push_str(
         r#"if [ -n "$home" ]; then
-    emit "$home/.local/share/mise/installs/herdr/$version/bin/herdr"
-    emit "$home/.local/share/mise/installs/herdr/$version/herdr"
-    emit "$home/.local/share/mise/installs/github-ogulcancelik-herdr/$version/herdr"
-    emit "$home/.nix-profile/bin/herdr"
+    emit "$home/.local/share/mise/installs/herdr-screen/$version/bin/herdr-screen"
+    emit "$home/.local/share/mise/installs/herdr-screen/$version/herdr-screen"
+    emit "$home/.nix-profile/bin/herdr-screen"
 fi
 if [ -n "$user" ]; then
-    emit "/etc/profiles/per-user/$user/bin/herdr"
+    emit "/etc/profiles/per-user/$user/bin/herdr-screen"
 fi
-emit "/nix/var/nix/profiles/default/bin/herdr"
-emit "/run/current-system/sw/bin/herdr"
+emit "/nix/var/nix/profiles/default/bin/herdr-screen"
+emit "/run/current-system/sw/bin/herdr-screen"
 "#,
     );
 
@@ -1696,7 +1583,7 @@ fn remote_binary_on_path_any(
     ssh: &RemoteSsh,
     remote_herdr: &RemoteHerdr,
 ) -> io::Result<Option<RemoteHerdr>> {
-    let output = ssh.posix_user_shell_output("command -v herdr")?;
+    let output = ssh.posix_user_shell_output("command -v herdr-screen")?;
     if output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
         if let Some(candidate) = remote_herdr_from_path_discovery(remote_herdr, &stdout) {
@@ -1706,7 +1593,7 @@ fn remote_binary_on_path_any(
 
     // Non-POSIX login shells such as xonsh reject `command -v`; retry through
     // /bin/sh while retaining the login-shell probe for shell-initialized PATHs.
-    let output = ssh.sh_output("command -v herdr\n")?;
+    let output = ssh.sh_output("command -v herdr-screen\n")?;
     if !output.status.success() {
         return Ok(None);
     }
@@ -1743,7 +1630,7 @@ fn remote_herdr_from_path(remote_herdr: &RemoteHerdr, path: &str) -> Option<Remo
 }
 
 fn is_mise_shim_path(path: &str) -> bool {
-    path.ends_with("/mise/shims/herdr")
+    path.ends_with("/mise/shims/herdr-screen")
 }
 
 fn remote_client_status(
@@ -1835,12 +1722,10 @@ fn install_source_description_for(
     }
 
     if local_binary_can_seed_remote {
-        "the current local herdr binary".to_string()
+        "the current local herdr-screen binary".to_string()
     } else {
         format!(
-            "the {} {} asset for {}",
-            current_version(),
-            current_channel(),
+            "the latest herdr-screen release asset for {}",
             platform.asset_key()
         )
     }
@@ -1976,13 +1861,13 @@ fn confirm_remote_install_with_running_server(
         Err(err) => {
             if !io::stdin().is_terminal() {
                 return Err(io::Error::other(format!(
-                    "could not inspect the running remote herdr server on {target} before installing: {err}; run from an interactive terminal to approve updating the remote binary"
+                    "could not inspect the running remote herdr-screen server on {target} before installing: {err}; run from an interactive terminal to approve updating the remote binary"
                 )));
             }
             eprintln!(
-                "could not inspect the running remote herdr server on {target} before installing: {err}"
+                "could not inspect the running remote herdr-screen server on {target} before installing: {err}"
             );
-            eprint!("continue installing the remote herdr binary? [y/N] ");
+            eprint!("continue installing the remote herdr-screen binary? [y/N] ");
             io::stderr().flush()?;
 
             let mut answer = String::new();
@@ -1991,7 +1876,7 @@ fn confirm_remote_install_with_running_server(
             if answer != "y" && answer != "yes" {
                 return Err(io::Error::new(
                     io::ErrorKind::Interrupted,
-                    "remote herdr install cancelled",
+                    "remote herdr-screen install cancelled",
                 ));
             }
             return Ok(false);
@@ -2020,10 +1905,10 @@ fn confirm_remote_install_with_running_server(
 
     if plan == RemoteInstallRunningServerPlan::KeepRunning {
         if io::stdin().is_terminal() {
-            eprintln!("remote herdr server on {target} is already compatible:");
+            eprintln!("remote herdr-screen server on {target} is already compatible:");
             eprintln!("  server: v{}", version_label(version.as_deref()));
             eprintln!(
-                "Herdr will install {} without stopping the running remote server.",
+                "herdr-screen will install {} without stopping the running remote server.",
                 current_version()
             );
         }
@@ -2035,7 +1920,7 @@ fn confirm_remote_install_with_running_server(
             RemoteInstallRunningServerPlan::LiveHandoff => return Ok(false),
             RemoteInstallRunningServerPlan::StopRequired(_) => {
                 return Err(io::Error::other(format!(
-                    "remote herdr server on {target} is running v{}; run from an interactive terminal to approve stopping it for the update",
+                    "remote herdr-screen server on {target} is running v{}; run from an interactive terminal to approve stopping it for the update",
                     version_label(version.as_deref())
                 )));
             }
@@ -2044,19 +1929,19 @@ fn confirm_remote_install_with_running_server(
     }
 
     if plan == RemoteInstallRunningServerPlan::LiveHandoff {
-        eprintln!("remote herdr server on {target} is currently running:");
+        eprintln!("remote herdr-screen server on {target} is currently running:");
         eprintln!("  server: v{}", version_label(version.as_deref()));
         eprintln!(
-            "Herdr will install {} and hand off live pane processes to the prepared server.",
+            "herdr-screen will install {} and hand off live pane processes to the prepared server.",
             current_version()
         );
         return Ok(false);
     }
 
-    eprintln!("remote herdr server on {target} is currently running:");
+    eprintln!("remote herdr-screen server on {target} is currently running:");
     eprintln!("  server: v{}", version_label(version.as_deref()));
     eprintln!(
-        "To complete the remote update, Herdr must stop the running remote server after installing."
+        "To complete the remote update, herdr-screen must stop the running remote server after installing."
     );
     eprintln!("This stops active remote pane processes, including shells, agents, dev servers, and tests.");
     eprintln!();
@@ -2072,7 +1957,7 @@ fn confirm_remote_install_with_running_server(
     if answer != "y" && answer != "yes" {
         return Err(io::Error::new(
             io::ErrorKind::Interrupted,
-            "remote herdr install cancelled",
+            "remote herdr-screen install cancelled",
         ));
     }
 
@@ -2257,19 +2142,19 @@ fn confirm_remote_server_stop(
     if !io::stdin().is_terminal() {
         if required_upgrade {
             return Err(io::Error::other(format!(
-                "remote herdr server on {target} needs one final update before this client can attach; run from an interactive terminal to approve updating it"
+                "remote herdr-screen server on {target} needs one final update before this client can attach; run from an interactive terminal to approve updating it"
             )));
         }
 
         eprintln!(
-            "remote herdr server on {target} is still running v{}; it will use {} after it restarts.",
+            "remote herdr-screen server on {target} is still running v{}; it will use {} after it restarts.",
             version_label(version),
             current_version()
         );
         return Ok(false);
     }
 
-    eprintln!("remote herdr server on {target} is currently running:");
+    eprintln!("remote herdr-screen server on {target} is currently running:");
     eprintln!("  server: v{}", version_label(version));
     eprintln!("  prepared binary: {}", current_version());
     eprintln!();
@@ -2277,7 +2162,7 @@ fn confirm_remote_server_stop(
     match reason {
         RemoteServerRestartReason::EndpointProtocol => {
             eprintln!(
-                "the remote server predates Herdr's stable endpoint protocol and must update before this client can attach."
+                "the remote server predates the stable endpoint protocol and must update before this client can attach."
             );
         }
         RemoteServerRestartReason::SurfaceInterest => {
@@ -2290,7 +2175,7 @@ fn confirm_remote_server_stop(
         }
         RemoteServerRestartReason::DaemonDetach => {
             eprintln!(
-                "the remote server was started by a herdr build that may not survive SSH connection loss. restart it so network drops disconnect only this client."
+                "the remote server was started by a herdr-screen build that may not survive SSH connection loss. restart it so network drops disconnect only this client."
             );
         }
     }
@@ -2310,7 +2195,7 @@ fn confirm_remote_server_stop(
     if required_upgrade {
         return Err(io::Error::new(
             io::ErrorKind::Interrupted,
-            "remote herdr server stop cancelled",
+            "remote herdr-screen server stop cancelled",
         ));
     }
 
@@ -2319,15 +2204,19 @@ fn confirm_remote_server_stop(
 
 fn live_handoff_remote_server(ssh: &RemoteSsh, remote_herdr: &RemoteHerdr) -> io::Result<()> {
     let status = remote_client_status(ssh, remote_herdr)?.ok_or_else(|| {
-        io::Error::other("could not inspect the prepared remote herdr binary before live handoff")
+        io::Error::other(
+            "could not inspect the prepared remote herdr-screen binary before live handoff",
+        )
     })?;
     let protocol = status.protocol.ok_or_else(|| {
-        io::Error::other("prepared remote herdr did not report its private protocol")
+        io::Error::other("prepared remote herdr-screen did not report its private protocol")
     })?;
     let version = status
         .version
         .filter(|version| !version.is_empty())
-        .ok_or_else(|| io::Error::other("prepared remote herdr did not report its version"))?;
+        .ok_or_else(|| {
+            io::Error::other("prepared remote herdr-screen did not report its version")
+        })?;
     let command =
         remote_herdr
             .executable
@@ -2338,7 +2227,7 @@ fn live_handoff_remote_server(ssh: &RemoteSsh, remote_herdr: &RemoteHerdr) -> io
     }
 
     eprintln!(
-        "handed off the remote herdr server on {}; reconnecting to the prepared server.",
+        "handed off the remote herdr-screen server on {}; reconnecting to the prepared server.",
         ssh.target()
     );
     Ok(())
@@ -2355,7 +2244,7 @@ fn stop_remote_server(ssh: &RemoteSsh, remote_herdr: &RemoteHerdr) -> io::Result
 
     wait_for_remote_server_shutdown(ssh, remote_herdr)?;
     eprintln!(
-        "stopped the remote herdr server on {}; it will restart when the remote client bridge attaches.",
+        "stopped the remote herdr-screen server on {}; it will restart when the remote client bridge attaches.",
         ssh.target()
     );
     Ok(())
@@ -2371,7 +2260,7 @@ fn wait_for_remote_server_shutdown(ssh: &RemoteSsh, remote_herdr: &RemoteHerdr) 
             return Err(io::Error::new(
                 io::ErrorKind::TimedOut,
                 format!(
-                    "shutdown was requested, but the old remote herdr server on {target} is still responding after {} seconds",
+                    "shutdown was requested, but the old remote herdr-screen server on {target} is still responding after {} seconds",
                     REMOTE_SERVER_SHUTDOWN_CONFIRM_TIMEOUT.as_secs(),
                     target = ssh.target()
                 ),
@@ -2386,7 +2275,7 @@ fn version_label(version: Option<&str>) -> &str {
 }
 
 fn warn_if_remote_bin_not_on_path(ssh: &RemoteSsh) -> io::Result<()> {
-    let output = ssh.posix_user_shell_output("command -v herdr")?;
+    let output = ssh.posix_user_shell_output("command -v herdr-screen")?;
     if output.status.success()
         && remote_shell_resolves_managed_install(&String::from_utf8_lossy(&output.stdout))
     {
@@ -2394,7 +2283,7 @@ fn warn_if_remote_bin_not_on_path(ssh: &RemoteSsh) -> io::Result<()> {
     }
 
     eprintln!(
-        "herdr: installed remote binary to ~/.local/bin/herdr, but the remote shell does not resolve `herdr` to that path"
+        "herdr-screen: installed remote binary to ~/.local/bin/herdr-screen, but the remote shell does not resolve `herdr-screen` to that path"
     );
     Ok(())
 }
@@ -2404,7 +2293,7 @@ fn remote_shell_resolves_managed_install(stdout: &str) -> bool {
         .lines()
         .next()
         .map(str::trim)
-        .is_some_and(|path| path.ends_with("/.local/bin/herdr"))
+        .is_some_and(|path| path.ends_with("/.local/bin/herdr-screen"))
 }
 
 fn download_release_asset(platform: &RemotePlatform) -> io::Result<InstallSource> {
@@ -2436,7 +2325,8 @@ fn download_release_asset(platform: &RemotePlatform) -> io::Result<InstallSource
     Ok(InstallSource::temporary(path, dir))
 }
 
-fn fetch_remote_manifest(url: &str) -> io::Result<Vec<u8>> {
+fn fetch_remote_release_checksums() -> io::Result<Vec<u8>> {
+    let url = format!("{REMOTE_RELEASE_DOWNLOAD_URL}/SHA256SUMS");
     let output = crate::noninteractive_process::curl_command()
         .args([
             "-sfL",
@@ -2446,93 +2336,49 @@ fn fetch_remote_manifest(url: &str) -> io::Result<Vec<u8>> {
             "10",
             "--max-time",
             "20",
-            url,
         ])
+        .arg(&url)
         .output()
         .map_err(|err| io::Error::new(err.kind(), format!("curl failed: {err}")))?;
     if !output.status.success() {
-        return Err(command_failed("failed to fetch update manifest", &output));
+        return Err(command_failed("failed to fetch release checksums", &output));
     }
     Ok(output.stdout)
 }
 
-fn remote_asset_info(asset: &RemoteAssetRef) -> RemoteReleaseAsset {
-    RemoteReleaseAsset {
-        url: asset.url().to_string(),
-        sha256: asset.sha256().map(str::to_string),
-    }
-}
-
-fn preview_assets_for_build<'a>(
-    manifest: &'a RemotePreviewManifest,
-    build_id: &str,
-) -> io::Result<(u32, &'a BTreeMap<String, RemoteAssetRef>)> {
-    if manifest.build_id == build_id {
-        return Ok((manifest.protocol, &manifest.assets));
-    }
-    let build = manifest.builds.get(build_id).ok_or_else(|| {
-        io::Error::other(format!(
-            "preview manifest no longer includes build {build_id}; run `herdr update` locally or set {REMOTE_BINARY_ENV_VAR}=target/release/herdr"
-        ))
-    })?;
-    Ok((build.protocol, &build.assets))
-}
-
 fn remote_release_asset(asset_key: &str) -> io::Result<RemoteReleaseAsset> {
-    if crate::build_info::is_preview() {
-        let build_id = crate::build_info::build_id().ok_or_else(|| {
-            io::Error::other("preview client has no build id; set HERDR_REMOTE_BINARY or install Herdr on the remote manually")
-        })?;
-        let manifest_bytes = fetch_remote_manifest(PREVIEW_UPDATE_MANIFEST_URL)?;
-        let manifest: RemotePreviewManifest =
-            serde_json::from_slice(&manifest_bytes).map_err(|err| {
-                io::Error::other(format!("failed to parse preview manifest JSON: {err}"))
-            })?;
-        let (protocol, assets) = preview_assets_for_build(&manifest, build_id)?;
-        if protocol != CURRENT_PROTOCOL {
-            return Err(io::Error::other(format!(
-                "preview manifest has build {build_id} protocol {protocol}, but this client needs protocol {CURRENT_PROTOCOL}; set {REMOTE_BINARY_ENV_VAR}=target/release/herdr or install a matching Herdr on the remote host manually"
-            )));
-        }
-        return assets.get(asset_key).map(remote_asset_info).ok_or_else(|| {
-            io::Error::other(format!(
-                "no {asset_key} binary in the preview manifest for build {build_id}"
-            ))
-        });
-    }
+    let asset_name = release_asset_name(asset_key);
+    let checksum_bytes = fetch_remote_release_checksums()?;
+    let checksums = String::from_utf8_lossy(&checksum_bytes);
+    let sha256 = release_asset_sha256(&checksums, &asset_name).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::NotFound,
+            format!(
+                "herdr-screen release does not publish {asset_name}; install herdr-screen on the remote host manually"
+            ),
+        )
+    })?;
+    Ok(RemoteReleaseAsset {
+        url: format!("{REMOTE_RELEASE_DOWNLOAD_URL}/{asset_name}"),
+        sha256: Some(sha256),
+    })
+}
 
-    let current_version = current_version();
-    let manifest_bytes = fetch_remote_manifest(STABLE_UPDATE_MANIFEST_URL)?;
-    let manifest: RemoteUpdateManifest = serde_json::from_slice(&manifest_bytes)
-        .map_err(|err| io::Error::other(format!("failed to parse update manifest JSON: {err}")))?;
-    let release = manifest.release_for_version(&current_version).ok_or_else(|| {
-        io::Error::other(format!(
-            "release manifest does not include herdr {current_version}; build herdr for {} or install it there manually",
-            asset_key
-        ))
-    })?;
-    if let Some(protocol) = release.protocol {
-        if protocol != CURRENT_PROTOCOL {
-            return Err(io::Error::other(format!(
-                "release manifest has herdr {current_version} protocol {protocol}, but this client needs protocol {CURRENT_PROTOCOL}; set {REMOTE_BINARY_ENV_VAR}=target/release/herdr or install a matching herdr on the remote host manually"
-            )));
-        }
+fn release_asset_sha256(checksums: &str, asset_name: &str) -> Option<String> {
+    checksums.lines().find_map(|line| {
+        let mut parts = line.split_whitespace();
+        let digest = parts.next()?;
+        let name = parts.next()?.strip_prefix('*').unwrap_or_default();
+        (name == asset_name).then(|| digest.to_string())
+    })
+}
+
+fn release_asset_name(asset_key: &str) -> String {
+    if asset_key.starts_with("windows") {
+        format!("herdr-screen-{asset_key}.zip")
+    } else {
+        format!("herdr-screen-{asset_key}")
     }
-    let asset = release.assets.get(asset_key).ok_or_else(|| {
-        io::Error::other(format!(
-            "no {asset_key} binary in the release manifest for herdr {current_version}"
-        ))
-    })?;
-    let mut asset = remote_asset_info(asset);
-    asset.sha256 = asset
-        .sha256
-        .or_else(|| release.sha256.get(asset_key).cloned());
-    if asset.sha256.is_none() {
-        return Err(io::Error::other(format!(
-            "release manifest asset {asset_key} is missing a SHA-256 checksum"
-        )));
-    }
-    Ok(asset)
 }
 
 fn private_download_dir(asset_key: &str) -> io::Result<PathBuf> {
@@ -2553,7 +2399,7 @@ fn private_download_dir(asset_key: &str) -> io::Result<PathBuf> {
 
     Err(io::Error::new(
         io::ErrorKind::AlreadyExists,
-        "failed to create private herdr remote download directory",
+        "failed to create private herdr-screen remote download directory",
     ))
 }
 
@@ -2583,14 +2429,14 @@ fn confirm_remote_install(
 ) -> io::Result<()> {
     if !io::stdin().is_terminal() {
         return Err(io::Error::other(format!(
-            "matching remote herdr {} is not installed at {}; run from an interactive terminal to approve installation",
+            "matching remote herdr-screen {} is not installed at {}; run from an interactive terminal to approve installation",
             current_version(),
             remote_herdr.executable.display()
         )));
     }
 
     eprintln!(
-        "matching herdr {} is not installed on {target} for {}.",
+        "matching herdr-screen {} is not installed on {target} for {}.",
         current_version(),
         remote_herdr.platform.asset_key()
     );
@@ -2604,7 +2450,7 @@ fn confirm_remote_install(
     if !read_remote_confirmation(&mut io::stdin().lock(), true)? {
         return Err(io::Error::new(
             io::ErrorKind::Interrupted,
-            "remote herdr installation cancelled",
+            "remote herdr-screen installation cancelled",
         ));
     }
 
@@ -2615,14 +2461,14 @@ fn posix_remote_api_discovery_command(platform: &RemotePlatform, session: &str) 
     let script = format!(
         r#"set -f
 candidates=$(
-command -v herdr
+command -v herdr-screen
 {discovery}
 )
 IFS='
 '
 for candidate in $candidates; do
     case "$candidate" in
-        */mise/shims/herdr) continue ;;
+        */mise/shims/herdr-screen) continue ;;
         /*) ;;
         *) continue ;;
     esac
@@ -2632,7 +2478,7 @@ for candidate in $candidates; do
         exit 0
     fi
 done
-printf '%s\n' 'remote Herdr does not support machine API forwarding; update Herdr on this machine' >&2
+printf '%s\n' 'remote herdr-screen does not support machine API forwarding; update herdr-screen on this machine' >&2
 exit 2"#,
         discovery = known_remote_binary_candidate_script(platform),
         session = shell_quote(session),
@@ -2810,7 +2656,7 @@ impl SshStdioBridge {
                             if noninteractive {
                                 tracing::warn!(error = %err, "saved SSH endpoint bridge failed");
                             } else {
-                                eprintln!("herdr: remote bridge failed: {err}");
+                                eprintln!("herdr-screen: remote bridge failed: {err}");
                             }
                         }
                     }
@@ -2821,7 +2667,7 @@ impl SshStdioBridge {
                         if noninteractive {
                             tracing::warn!(error = %err, "saved SSH endpoint listener failed");
                         } else {
-                            eprintln!("herdr: remote bridge listener failed: {err}");
+                            eprintln!("herdr-screen: remote bridge listener failed: {err}");
                         }
                         break;
                     }
@@ -4563,7 +4409,7 @@ mod tests {
 
     #[test]
     fn windows_remote_commands_use_one_encoded_powershell_grammar() {
-        let executable = RemoteExecutable::WindowsPath("herdr.exe".to_string());
+        let executable = RemoteExecutable::WindowsPath("herdr-screen.exe".to_string());
         let commands = [
             (
                 "platform probe",
@@ -4573,42 +4419,42 @@ mod tests {
             (
                 "PATH lookup",
                 executable.exists_command(),
-                "if ($null -ne (Get-Command herdr.exe -CommandType Application -ErrorAction SilentlyContinue)) { exit 0 }; exit 1",
+                "if ($null -ne (Get-Command herdr-screen.exe -CommandType Application -ErrorAction SilentlyContinue)) { exit 0 }; exit 1",
             ),
             (
                 "client status",
                 executable.status_client_command(),
-                "& herdr.exe status client '--json'; exit $LASTEXITCODE",
+                "& herdr-screen.exe status client '--json'; exit $LASTEXITCODE",
             ),
             (
                 "named server status",
                 executable.session_command("agents", &["status", "server", "--json"]),
-                "& herdr.exe '--session' agents status server '--json'; exit $LASTEXITCODE",
+                "& herdr-screen.exe '--session' agents status server '--json'; exit $LASTEXITCODE",
             ),
             (
                 "server stop",
                 executable.session_command("agents", &["server", "stop"]),
-                "& herdr.exe '--session' agents server stop; exit $LASTEXITCODE",
+                "& herdr-screen.exe '--session' agents server stop; exit $LASTEXITCODE",
             ),
             (
                 "direct bridge",
                 executable.bridge_command("agents"),
-                "$process = Start-Process -FilePath herdr.exe -ArgumentList '--session agents remote-client-bridge' -NoNewWindow -PassThru -ErrorAction Stop; $null = $process.Handle; $process.WaitForExit(); exit $process.ExitCode",
+                "$process = Start-Process -FilePath herdr-screen.exe -ArgumentList '--session agents remote-client-bridge' -NoNewWindow -PassThru -ErrorAction Stop; $null = $process.Handle; $process.WaitForExit(); exit $process.ExitCode",
             ),
             (
                 "API bridge with explicit default session",
                 remote_api_bridge_command(&RemoteHerdr::for_platform(RemotePlatform { os: "windows", arch: "x86_64" }), "default", false),
-                "$process = Start-Process -FilePath herdr.exe -ArgumentList '--session default remote-api-bridge' -NoNewWindow -PassThru -ErrorAction Stop; $null = $process.Handle; $process.WaitForExit(); exit $process.ExitCode",
+                "$process = Start-Process -FilePath herdr-screen.exe -ArgumentList '--session default remote-api-bridge' -NoNewWindow -PassThru -ErrorAction Stop; $null = $process.Handle; $process.WaitForExit(); exit $process.ExitCode",
             ),
             (
                 "API bridge capability probe",
                 remote_api_bridge_command(&RemoteHerdr::for_platform(RemotePlatform { os: "windows", arch: "x86_64" }), "agents", true),
-                "$process = Start-Process -FilePath herdr.exe -ArgumentList '--session agents remote-api-bridge --check' -NoNewWindow -PassThru -ErrorAction Stop; $null = $process.Handle; $process.WaitForExit(); exit $process.ExitCode",
+                "$process = Start-Process -FilePath herdr-screen.exe -ArgumentList '--session agents remote-api-bridge --check' -NoNewWindow -PassThru -ErrorAction Stop; $null = $process.Handle; $process.WaitForExit(); exit $process.ExitCode",
             ),
             (
                 "saved bridge with closed stdin",
                 executable.saved_bridge_command("agents"),
-                "$process = Start-Process -FilePath herdr.exe -ArgumentList '--session agents remote-client-bridge' -NoNewWindow -PassThru -ErrorAction Stop; $null = $process.Handle; $process.WaitForExit(); exit $process.ExitCode",
+                "$process = Start-Process -FilePath herdr-screen.exe -ArgumentList '--session agents remote-client-bridge' -NoNewWindow -PassThru -ErrorAction Stop; $null = $process.Handle; $process.WaitForExit(); exit $process.ExitCode",
             ),
         ];
 
@@ -4638,9 +4484,9 @@ mod tests {
         assert_eq!(
             windows_scp_target(
                 "user@example",
-                &format!(r"{remote_dir}\herdr-windows-x86_64.zip")
+                &format!(r"{remote_dir}\herdr-screen-windows-x86_64.zip")
             ),
-            "user@example:C:/Temp/Herdr O'Brien/测试/herdr-windows-x86_64.zip"
+            "user@example:C:/Temp/Herdr O'Brien/测试/herdr-screen-windows-x86_64.zip"
         );
         assert_eq!(
             windows_scp_target("ssh://user@example:2222", r"C:\Temp\install.ps1"),
@@ -4700,7 +4546,7 @@ mod tests {
         );
 
         let command = decode_windows_command(&windows_remote_binary_candidate_command());
-        assert!(command.contains("Get-Command herdr.exe"));
+        assert!(command.contains("Get-Command herdr-screen.exe"));
         assert!(command.contains("$activeJunction.Target"));
     }
 
@@ -4789,43 +4635,43 @@ function Get-Process {
     fn reattach_command_includes_remote_and_session() {
         assert_eq!(
             reattach_command(
-                "target/release/herdr",
+                "target/release/herdr-screen",
                 "user@host",
                 "work",
                 RemoteKeybindings::Local,
                 false,
             ),
-            "target/release/herdr --remote user@host --session work"
+            "target/release/herdr-screen --remote user@host --session work"
         );
         assert_eq!(
             reattach_command(
-                "herdr",
+                "herdr-screen",
                 "host name",
                 crate::session::DEFAULT_SESSION_NAME,
                 RemoteKeybindings::Local,
                 false,
             ),
-            "herdr --remote 'host name'"
+            "herdr-screen --remote 'host name'"
         );
         assert_eq!(
             reattach_command(
-                "herdr",
+                "herdr-screen",
                 "host",
                 crate::session::DEFAULT_SESSION_NAME,
                 RemoteKeybindings::Server,
                 false,
             ),
-            "herdr --remote host --remote-keybindings server"
+            "herdr-screen --remote host --remote-keybindings server"
         );
         assert_eq!(
             reattach_command(
-                "herdr",
+                "herdr-screen",
                 "host",
                 crate::session::DEFAULT_SESSION_NAME,
                 RemoteKeybindings::Local,
                 true,
             ),
-            "herdr --remote host --handoff"
+            "herdr-screen --remote host --handoff"
         );
     }
 
@@ -4835,7 +4681,7 @@ function Get-Process {
         let executable = std::env::current_exe().expect("current test executable");
         assert_eq!(
             reattach_command(
-                r"C:\Program Files\Herdr\herdr.exe",
+                r"C:\Program Files\Herdr\herdr-screen.exe",
                 "host'name",
                 "work'name",
                 RemoteKeybindings::Local,
@@ -4858,7 +4704,7 @@ function Get-Process {
             assert_eq!(
                 remote_api_bridge_command(&remote_herdr, session, false),
                 posix_remote_output_command(&format!(
-                    "exec \"$HOME/.local/bin/herdr\" --session {session} remote-api-bridge"
+                    "exec \"$HOME/.local/bin/herdr-screen\" --session {session} remote-api-bridge"
                 ))
             );
         }
@@ -4893,11 +4739,11 @@ function Get-Process {
             remote_herdr
                 .executable
                 .bridge_command(crate::session::DEFAULT_SESSION_NAME),
-            "printf '\n%s\n' 'herdr-remote-output-ready:1'\nexec \"$HOME/.local/bin/herdr\" remote-client-bridge"
+            "printf '\n%s\n' 'herdr-remote-output-ready:1'\nexec \"$HOME/.local/bin/herdr-screen\" remote-client-bridge"
         );
         assert_eq!(
             remote_herdr.executable.saved_bridge_command("agents"),
-            "exec \"$HOME/.local/bin/herdr\" --session agents remote-client-bridge </dev/null"
+            "exec \"$HOME/.local/bin/herdr-screen\" --session agents remote-client-bridge </dev/null"
         );
     }
 
@@ -4907,14 +4753,15 @@ function Get-Process {
             os: "linux",
             arch: "x86_64",
         });
-        let remote_herdr = remote_herdr_from_path_discovery(&remote_herdr, "/usr/bin/herdr\n")
-            .expect("path binary");
+        let remote_herdr =
+            remote_herdr_from_path_discovery(&remote_herdr, "/usr/bin/herdr-screen\n")
+                .expect("path binary");
 
         assert_eq!(
             remote_herdr
                 .executable
                 .bridge_command(crate::session::DEFAULT_SESSION_NAME),
-            "printf '\n%s\n' 'herdr-remote-output-ready:1'\nexec /usr/bin/herdr remote-client-bridge"
+            "printf '\n%s\n' 'herdr-remote-output-ready:1'\nexec /usr/bin/herdr-screen remote-client-bridge"
         );
     }
 
@@ -4925,14 +4772,14 @@ function Get-Process {
             arch: "x86_64",
         });
         let remote_herdr =
-            remote_herdr_from_path_discovery(&remote_herdr, "/opt/herdr bin/herdr\n")
+            remote_herdr_from_path_discovery(&remote_herdr, "/opt/herdr-screen bin/herdr-screen\n")
                 .expect("path binary");
 
         assert_eq!(
             remote_herdr
                 .executable
                 .bridge_command(crate::session::DEFAULT_SESSION_NAME),
-            "printf '\n%s\n' 'herdr-remote-output-ready:1'\nexec '/opt/herdr bin/herdr' remote-client-bridge"
+            "printf '\n%s\n' 'herdr-remote-output-ready:1'\nexec '/opt/herdr-screen bin/herdr-screen' remote-client-bridge"
         );
     }
 
@@ -4943,14 +4790,14 @@ function Get-Process {
             arch: "aarch64",
         });
         let remote_herdr =
-            remote_herdr_from_path_discovery(&remote_herdr, "/opt/homebrew/bin/herdr\n")
+            remote_herdr_from_path_discovery(&remote_herdr, "/opt/homebrew/bin/herdr-screen\n")
                 .expect("path binary");
 
         assert_eq!(
             remote_herdr
                 .executable
                 .bridge_command(crate::session::DEFAULT_SESSION_NAME),
-            "printf '\n%s\n' 'herdr-remote-output-ready:1'\nexec /opt/homebrew/bin/herdr remote-client-bridge"
+            "printf '\n%s\n' 'herdr-remote-output-ready:1'\nexec /opt/homebrew/bin/herdr-screen remote-client-bridge"
         );
         assert_eq!(remote_herdr.platform.asset_key(), "macos-aarch64");
     }
@@ -4963,17 +4810,17 @@ function Get-Process {
         });
         let candidates = remote_herdrs_from_path_discovery(
             &remote_herdr,
-            "/usr/bin/herdr\nbin/herdr\n /opt/herdr bin/herdr\n",
+            "/usr/bin/herdr-screen\nbin/herdr-screen\n /opt/herdr-screen bin/herdr-screen\n",
         );
 
         assert_eq!(candidates.len(), 2);
         assert_eq!(
             candidates[0].executable,
-            RemoteExecutable::PosixShellPath("/usr/bin/herdr".to_string())
+            RemoteExecutable::PosixShellPath("/usr/bin/herdr-screen".to_string())
         );
         assert_eq!(
             candidates[1].executable,
-            RemoteExecutable::PosixShellPath("'/opt/herdr bin/herdr'".to_string())
+            RemoteExecutable::PosixShellPath("'/opt/herdr-screen bin/herdr-screen'".to_string())
         );
     }
 
@@ -4985,14 +4832,15 @@ function Get-Process {
         });
         let candidates = remote_herdrs_from_path_discovery(
             &remote_herdr,
-            "/home/can/.local/share/mise/shims/herdr\n/home/can/.local/share/mise/installs/herdr/0.7.1/bin/herdr\n",
+            "/home/can/.local/share/mise/shims/herdr-screen\n/home/can/.local/share/mise/installs/herdr-screen/0.7.1/bin/herdr-screen\n",
         );
 
         assert_eq!(candidates.len(), 1);
         assert_eq!(
             candidates[0].executable,
             RemoteExecutable::PosixShellPath(
-                "/home/can/.local/share/mise/installs/herdr/0.7.1/bin/herdr".to_string()
+                "/home/can/.local/share/mise/installs/herdr-screen/0.7.1/bin/herdr-screen"
+                    .to_string()
             )
         );
     }
@@ -5004,21 +4852,21 @@ function Get-Process {
             arch: "x86_64",
         });
 
-        assert!(script.contains("emit \"$home/.local/bin/herdr\""));
-        assert!(!script.contains("mise/shims/herdr"));
+        assert!(script.contains("emit \"$home/.local/bin/herdr-screen\""));
+        assert!(!script.contains("mise/shims/herdr-screen"));
         assert!(script.contains(&format!("version={}", shell_quote(&current_version()))));
-        assert!(
-            script.contains("emit \"$home/.local/share/mise/installs/herdr/$version/bin/herdr\"")
-        );
-        assert!(script.contains("emit \"$home/.local/share/mise/installs/herdr/$version/herdr\""));
         assert!(script.contains(
-            "emit \"$home/.local/share/mise/installs/github-ogulcancelik-herdr/$version/herdr\""
+            "emit \"$home/.local/share/mise/installs/herdr-screen/$version/bin/herdr-screen\""
         ));
-        assert!(script.contains("emit \"$home/.nix-profile/bin/herdr\""));
-        assert!(script.contains("emit \"/etc/profiles/per-user/$user/bin/herdr\""));
-        assert!(script.contains("emit \"/run/current-system/sw/bin/herdr\""));
-        assert!(script.contains("emit \"/home/linuxbrew/.linuxbrew/bin/herdr\""));
-        assert!(!script.contains("emit \"/opt/homebrew/bin/herdr\""));
+        assert!(script.contains(
+            "emit \"$home/.local/share/mise/installs/herdr-screen/$version/herdr-screen\""
+        ));
+        assert!(!script.contains("ogulcancelik"));
+        assert!(script.contains("emit \"$home/.nix-profile/bin/herdr-screen\""));
+        assert!(script.contains("emit \"/etc/profiles/per-user/$user/bin/herdr-screen\""));
+        assert!(script.contains("emit \"/run/current-system/sw/bin/herdr-screen\""));
+        assert!(script.contains("emit \"/home/linuxbrew/.linuxbrew/bin/herdr-screen\""));
+        assert!(!script.contains("emit \"/opt/homebrew/bin/herdr-screen\""));
     }
 
     #[test]
@@ -5028,9 +4876,9 @@ function Get-Process {
             arch: "aarch64",
         });
 
-        assert!(script.contains("emit \"/opt/homebrew/bin/herdr\""));
-        assert!(script.contains("emit \"/usr/local/bin/herdr\""));
-        assert!(!script.contains("emit \"/home/linuxbrew/.linuxbrew/bin/herdr\""));
+        assert!(script.contains("emit \"/opt/homebrew/bin/herdr-screen\""));
+        assert!(script.contains("emit \"/usr/local/bin/herdr-screen\""));
+        assert!(!script.contains("emit \"/home/linuxbrew/.linuxbrew/bin/herdr-screen\""));
     }
 
     #[test]
@@ -5039,15 +4887,17 @@ function Get-Process {
             os: "linux",
             arch: "x86_64",
         });
-        let remote_herdr =
-            remote_herdr_from_path_discovery(&remote_herdr, "/opt/herdr's/bin/herdr\n")
-                .expect("path binary");
+        let remote_herdr = remote_herdr_from_path_discovery(
+            &remote_herdr,
+            "/opt/herdr-screen's/bin/herdr-screen\n",
+        )
+        .expect("path binary");
 
         assert_eq!(
             remote_herdr
                 .executable
                 .bridge_command(crate::session::DEFAULT_SESSION_NAME),
-            "printf '\n%s\n' 'herdr-remote-output-ready:1'\nexec '/opt/herdr'\\''s/bin/herdr' remote-client-bridge"
+            "printf '\n%s\n' 'herdr-remote-output-ready:1'\nexec '/opt/herdr-screen'\\''s/bin/herdr-screen' remote-client-bridge"
         );
     }
 
@@ -5057,7 +4907,7 @@ function Get-Process {
             os: "linux",
             arch: "x86_64",
         });
-        let remote_herdr = remote_herdr_from_path_discovery(&remote_herdr, "bin/herdr\n");
+        let remote_herdr = remote_herdr_from_path_discovery(&remote_herdr, "bin/herdr-screen\n");
 
         assert!(remote_herdr.is_none());
     }
@@ -5076,13 +4926,13 @@ function Get-Process {
     #[test]
     fn remote_shell_path_warning_accepts_managed_install() {
         assert!(remote_shell_resolves_managed_install(
-            "/home/can/.local/bin/herdr\n"
+            "/home/can/.local/bin/herdr-screen\n"
         ));
         assert!(remote_shell_resolves_managed_install(
-            "/Users/can/.local/bin/herdr\n"
+            "/Users/can/.local/bin/herdr-screen\n"
         ));
         assert!(!remote_shell_resolves_managed_install(
-            "/usr/local/bin/herdr\n"
+            "/usr/local/bin/herdr-screen\n"
         ));
         assert!(!remote_shell_resolves_managed_install(""));
     }
@@ -5247,162 +5097,6 @@ function Get-Process {
     }
 
     #[test]
-    fn remote_update_manifest_uses_root_assets_for_latest_version() {
-        let manifest: RemoteUpdateManifest = serde_json::from_str(
-            r#"{
-                "version": "1.2.3",
-                "assets": {
-                    "linux-x86_64": "https://example.com/latest"
-                },
-                "sha256": {
-                    "linux-x86_64": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-                },
-                "releases": {
-                    "1.2.3": {
-                        "assets": {
-                            "linux-x86_64": "https://example.com/archive"
-                        }
-                    }
-                }
-            }"#,
-        )
-        .unwrap();
-
-        let release = manifest.release_for_version("1.2.3").unwrap();
-        assert_eq!(
-            release.assets.get("linux-x86_64").map(RemoteAssetRef::url),
-            Some("https://example.com/latest")
-        );
-        assert_eq!(
-            release.sha256.get("linux-x86_64").map(String::as_str),
-            Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-        );
-    }
-
-    #[test]
-    fn remote_update_manifest_reads_archived_release_assets() {
-        let manifest: RemoteUpdateManifest = serde_json::from_str(
-            r#"{
-                "version": "1.2.4",
-                "assets": {
-                    "linux-x86_64": "https://example.com/latest"
-                },
-                "releases": {
-                    "1.2.3": {
-                        "notes": "ignored",
-                        "assets": {
-                            "linux-x86_64": "https://example.com/archive"
-                        }
-                    }
-                }
-            }"#,
-        )
-        .unwrap();
-
-        assert_eq!(
-            manifest
-                .release_for_version("1.2.3")
-                .and_then(|release| release.assets.get("linux-x86_64"))
-                .map(RemoteAssetRef::url),
-            Some("https://example.com/archive")
-        );
-    }
-
-    #[test]
-    fn remote_update_manifest_uses_archived_release_protocol() {
-        let manifest: RemoteUpdateManifest = serde_json::from_str(
-            r#"{
-                "version": "1.2.4",
-                "protocol": 42,
-                "assets": {
-                    "linux-x86_64": "https://example.com/latest"
-                },
-                "releases": {
-                    "1.2.3": {
-                        "notes": "ignored",
-                        "protocol": 41,
-                        "assets": {
-                            "linux-x86_64": "https://example.com/archive"
-                        }
-                    }
-                }
-            }"#,
-        )
-        .unwrap();
-
-        assert_eq!(
-            manifest
-                .release_for_version("1.2.3")
-                .and_then(|release| release.protocol),
-            Some(41)
-        );
-    }
-
-    #[test]
-    fn remote_update_manifest_does_not_inherit_latest_protocol_for_archived_assets() {
-        let manifest: RemoteUpdateManifest = serde_json::from_str(
-            r#"{
-                "version": "1.2.4",
-                "protocol": 42,
-                "assets": {
-                    "linux-x86_64": "https://example.com/latest"
-                },
-                "releases": {
-                    "1.2.3": {
-                        "notes": "ignored",
-                        "assets": {
-                            "linux-x86_64": "https://example.com/archive"
-                        }
-                    }
-                }
-            }"#,
-        )
-        .unwrap();
-
-        assert_eq!(
-            manifest
-                .release_for_version("1.2.3")
-                .and_then(|release| release.protocol),
-            None
-        );
-    }
-
-    #[test]
-    fn remote_preview_manifest_falls_back_to_archived_exact_build_assets() {
-        let manifest: RemotePreviewManifest = serde_json::from_str(
-            r#"{
-                "build_id": "2026-06-06-new",
-                "protocol": 12,
-                "assets": {
-                    "linux-x86_64": {
-                        "url": "https://example.com/new",
-                        "sha256": "new"
-                    }
-                },
-                "builds": {
-                    "2026-06-02-old": {
-                        "protocol": 11,
-                        "assets": {
-                            "linux-x86_64": {
-                                "url": "https://example.com/old",
-                                "sha256": "old"
-                            }
-                        }
-                    }
-                }
-            }"#,
-        )
-        .unwrap();
-
-        let (protocol, assets) =
-            preview_assets_for_build(&manifest, "2026-06-02-old").expect("archived build");
-        let asset = assets.get("linux-x86_64").expect("asset");
-        assert_eq!(protocol, 11);
-        assert_eq!(asset.url(), "https://example.com/old");
-        assert_eq!(asset.sha256(), Some("old"));
-    }
-
-    #[test]
     fn remote_live_handoff_uses_prepared_binary_identity() {
         let remote_herdr = RemoteHerdr::for_platform(RemotePlatform {
             os: "linux",
@@ -5439,7 +5133,7 @@ function Get-Process {
 
         assert_eq!(
             install_source_description_for(&platform, None, true),
-            "the current local herdr binary"
+            "the current local herdr-screen binary"
         );
     }
 
@@ -5450,9 +5144,7 @@ function Get-Process {
         assert_eq!(
             install_source_description_for(&platform, None, false),
             format!(
-                "the {} {} asset for {}",
-                current_version(),
-                current_channel(),
+                "the latest herdr-screen release asset for {}",
                 platform.asset_key()
             )
         );
@@ -5566,6 +5258,35 @@ function Get-Process {
         assert!(
             filename.starts_with("herdr-r-"),
             "expected hashed fallback, got {filename}"
+        );
+    }
+
+    #[test]
+    fn release_asset_sha256_parses_checksums_file() {
+        let checksums = "\
+deadbeef *herdr-screen-0.2.3.tar.gz
+cafebabe *herdr-screen-linux-x86_64
+cafebabe2 *herdr-screen_0.2.3_amd64.deb
+";
+        assert_eq!(
+            release_asset_sha256(checksums, "herdr-screen-linux-x86_64"),
+            Some("cafebabe".to_string())
+        );
+        assert_eq!(
+            release_asset_sha256(checksums, "herdr-screen-macos-aarch64"),
+            None
+        );
+    }
+
+    #[test]
+    fn release_asset_name_uses_zip_for_windows() {
+        assert_eq!(
+            release_asset_name("linux-x86_64"),
+            "herdr-screen-linux-x86_64"
+        );
+        assert_eq!(
+            release_asset_name("windows-x86_64"),
+            "herdr-screen-windows-x86_64.zip"
         );
     }
 
