@@ -24,6 +24,8 @@ ergonomics and infra tooling. In short:
 - GNU screen keybindings by default: prefix is `ctrl+a` (set `prefix = "ctrl+b"` for the
   tmux style)
   - `ctrl+a ctrl+a` toggles back to the last focused tab (`keys.last_tab = "prefix+prefix"`)
+  - `ctrl+a a` sends a literal `ctrl+a` to the shell (GNU screen's `meta`
+    key), so readline's start-of-line jump still works
   - `ctrl+a ctrl+x` locks the terminal via `keys.lock_command` (default
     `loginctl lock-session`)
 - Screen-style window list (`ctrl+a "`)
