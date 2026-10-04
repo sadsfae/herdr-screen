@@ -202,6 +202,18 @@ equivalents.
 `ctrl+a "` shows every tab across every workspace, grouped under its workspace
 header. Headers are collapsible (`▼`/`▶`), and `/` filters tab titles.
 
+### Cycle through agents
+
+`ctrl+pagedown` and `ctrl+pageup` focus the next or previous agent in the agent
+panel. These are the `keys.next_agent` and `keys.previous_agent` bindings
+(defaults here), so you can rebind or unset them in `~/.config/herdr/config.toml`
+(`pageup`/`pagedown` are accepted as key names, so `next_agent = "ctrl+alt+n"`
+and the like also work).
+
+Some terminals reserve `ctrl+pageup`/`ctrl+pagedown` for their own tab
+switching, so if those keys do nothing, rebind the actions to a chord your
+terminal forwards.
+
 ## Docs
 
 everything lives at [herdr.dev/docs](https://herdr.dev/docs/): [quick start](https://herdr.dev/docs/quick-start/) · [concepts](https://herdr.dev/docs/concepts/) · [supported agents](https://herdr.dev/docs/agents/) · [keyboard](https://herdr.dev/docs/keyboard/) · [configuration](https://herdr.dev/docs/configuration/) · [session state](https://herdr.dev/docs/session-state/) · [connecting machines](https://herdr.dev/docs/connecting-machines/) · [remote](https://herdr.dev/docs/persistence-remote/) · [integrations](https://herdr.dev/docs/integrations/) · [plugins](https://herdr.dev/docs/plugins/) · [socket api](https://herdr.dev/docs/socket-api/)
