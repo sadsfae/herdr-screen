@@ -180,6 +180,10 @@ jobs:
       VERSION: ${{ needs.build.outputs.version }}
       PKGVER_OVERRIDE: ${{ needs.build.outputs.version }}
       GH_TOKEN: ${{ github.token }}
+      # Override the workflow-level zig caches (they point into the
+      # host-owned workspace, which the non-root builder user cannot write).
+      ZIG_GLOBAL_CACHE_DIR: /home/builder/.cache/zig
+      ZIG_LOCAL_CACHE_DIR: /home/builder/build/.zig-cache
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -196,9 +200,9 @@ jobs:
 
       - name: Build package
         run: |
-          mkdir -p /home/builder/build
+          mkdir -p /home/builder/build /home/builder/.cache/zig
           cp packaging/AUR/PKGBUILD /home/builder/build/
-          chown -R builder:builder /home/builder/build
+          chown -R builder:builder /home/builder/build /home/builder/.cache
           su builder -c 'cd /home/builder/build && makepkg -s --noconfirm'
 
       - name: Attach package to release
