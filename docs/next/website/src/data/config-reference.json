@@ -616,14 +616,14 @@
         {
           "key": "keys.previous_agent",
           "type": "keybinding",
-          "default": "unset",
-          "description": "Focus the previous agent shown in the agent panel. Unset by default."
+          "default": "ctrl+pageup",
+          "description": "Focus the previous agent shown in the agent panel. Default: ctrl+pageup."
         },
         {
           "key": "keys.next_agent",
           "type": "keybinding",
-          "default": "unset",
-          "description": "Focus the next agent shown in the agent panel. Unset by default."
+          "default": "ctrl+pagedown",
+          "description": "Focus the next agent shown in the agent panel. Default: ctrl+pagedown."
         },
         {
           "key": "keys.focus_agent",

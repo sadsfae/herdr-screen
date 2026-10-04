@@ -135,7 +135,7 @@ const DEFAULT_CONFIG: &str = r##"# herdr-screen configuration
 # Examples: "ctrl+a", "f12", "esc", "-"
 # Action bindings use explicit syntax: "prefix+n" requires the prefix;
 # "ctrl+alt+n" is a direct terminal-mode shortcut.
-# Accepted key syntax: plain keys, ctrl/shift/alt/cmd/super modifiers, and special keys like enter/tab/esc/left/right/up/down.
+# Accepted key syntax: plain keys, ctrl/shift/alt/cmd/super modifiers, and special keys like enter/tab/esc/left/right/up/down/pageup/pagedown.
 # Named punctuation such as minus, comma, ampersand, plus, and backtick is also accepted.
 # Most reliable direct bindings are ctrl+letter, function keys, and explicit modified chords.
 # alt+..., cmd/super, and punctuation-with-modifiers may depend on your terminal/tmux setup.
@@ -157,8 +157,8 @@ const DEFAULT_CONFIG: &str = r##"# herdr-screen configuration
 # close_workspace = "prefix+shift+d"
 # previous_workspace = "" # optional, unset by default
 # next_workspace = ""     # optional, unset by default
-# previous_agent = ""     # optional, unset by default
-# next_agent = ""         # optional, unset by default
+# previous_agent = "ctrl+pageup"  # focus the previous agent in the agent panel
+# next_agent = "ctrl+pagedown"    # focus the next agent in the agent panel
 # focus_agent = ""        # optional indexed binding, e.g. "prefix+alt+1..9"
 # remote_image_paste = "ctrl+v" # only active in herdr-screen --remote; empty disables raw-key image paste
 # new_tab = "prefix+c"
@@ -821,6 +821,22 @@ mod tests {
         let sidebar = DEFAULT_CONFIG.find("# [ui.sidebar.agents]").unwrap();
 
         assert!(accent < sidebar);
+    }
+
+    #[test]
+    fn default_config_documents_agent_cycle_bindings() {
+        assert_eq!(
+            DEFAULT_CONFIG
+                .matches("# previous_agent = \"ctrl+pageup\"")
+                .count(),
+            1
+        );
+        assert_eq!(
+            DEFAULT_CONFIG
+                .matches("# next_agent = \"ctrl+pagedown\"")
+                .count(),
+            1
+        );
     }
 
     #[test]

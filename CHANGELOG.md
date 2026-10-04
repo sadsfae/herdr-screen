@@ -16,6 +16,13 @@ Initial herdr-screen release: a GNU screen edition hard fork of Herdr 0.9.3
 
 ## Unreleased
 
+### Added
+- `ctrl+pagedown` and `ctrl+pageup` now cycle forward and back between the
+  agents in the agent panel (`keys.next_agent` / `keys.previous_agent`,
+  default `ctrl+pagedown` / `ctrl+pageup`). Previously these actions were
+  unbound; the key names `pageup`/`pagedown` (`pgup`/`pgdn`) are now valid
+  in keybindings so the bindings can be changed or unset in `config.toml`.
+
 ### Fixed
 - `ctrl+a a` (prefix followed by the bare prefix key) now sends a literal
   `ctrl+a` to the shell, like GNU screen's `meta` binding, so readline's

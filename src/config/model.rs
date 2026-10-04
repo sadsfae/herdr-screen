@@ -383,9 +383,9 @@ pub struct KeysConfig {
     pub previous_workspace: BindingConfig,
     /// Select the next workspace. Unset by default.
     pub next_workspace: BindingConfig,
-    /// Focus the previous agent shown in the agent panel. Unset by default.
+    /// Focus the previous agent shown in the agent panel. Default: "ctrl+pageup".
     pub previous_agent: BindingConfig,
-    /// Focus the next agent shown in the agent panel. Unset by default.
+    /// Focus the next agent shown in the agent panel. Default: "ctrl+pagedown".
     pub next_agent: BindingConfig,
     /// Focus an agent by index 1-9. Unset by default.
     pub focus_agent: BindingConfig,
@@ -1167,8 +1167,8 @@ impl Default for KeysConfig {
             open_notification_target: BindingConfig::one("prefix+o"),
             previous_workspace: BindingConfig::empty(),
             next_workspace: BindingConfig::empty(),
-            previous_agent: BindingConfig::empty(),
-            next_agent: BindingConfig::empty(),
+            previous_agent: BindingConfig::one("ctrl+pageup"),
+            next_agent: BindingConfig::one("ctrl+pagedown"),
             focus_agent: BindingConfig::empty(),
             remote_image_paste: "ctrl+v".into(),
             new_tab: BindingConfig::one("prefix+c"),

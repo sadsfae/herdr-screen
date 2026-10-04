@@ -1407,6 +1407,8 @@ pub(crate) fn parse_key_combo(s: &str) -> Option<KeyCombo> {
         "ampersand" => KeyCode::Char('&'),
         "backtick" => KeyCode::Char('`'),
         "plus" => KeyCode::Char('+'),
+        "pageup" | "pgup" => KeyCode::PageUp,
+        "pagedown" | "pgdn" => KeyCode::PageDown,
         _ if single_char.is_some() => {
             let ch = single_char?;
             if ch.is_ascii_uppercase() {
@@ -1712,6 +1714,54 @@ prefix = "ö"
         assert_eq!(
             parse_key_combo("ampersand"),
             Some((KeyCode::Char('&'), KeyModifiers::empty()))
+        );
+    }
+
+    #[test]
+    fn parse_pageup_pagedown_combo() {
+        assert_eq!(
+            parse_key_combo("ctrl+pageup"),
+            Some((KeyCode::PageUp, KeyModifiers::CONTROL))
+        );
+        assert_eq!(
+            parse_key_combo("ctrl+pagedown"),
+            Some((KeyCode::PageDown, KeyModifiers::CONTROL))
+        );
+        assert_eq!(
+            parse_key_combo("pageup"),
+            Some((KeyCode::PageUp, KeyModifiers::empty()))
+        );
+        assert_eq!(
+            parse_key_combo("pagedown"),
+            Some((KeyCode::PageDown, KeyModifiers::empty()))
+        );
+        assert_eq!(
+            parse_key_combo("pgup"),
+            Some((KeyCode::PageUp, KeyModifiers::empty()))
+        );
+        assert_eq!(
+            parse_key_combo("pgdn"),
+            Some((KeyCode::PageDown, KeyModifiers::empty()))
+        );
+        assert_eq!(parse_key_combo(""), None);
+    }
+
+    #[test]
+    fn agent_cycling_defaults_to_ctrl_pageup_pagedown() {
+        let kb = Config::default().keybinds();
+        assert_eq!(
+            binding_triggers(&kb.previous_agent),
+            vec![BindingTrigger::Direct((
+                KeyCode::PageUp,
+                KeyModifiers::CONTROL
+            ))]
+        );
+        assert_eq!(
+            binding_triggers(&kb.next_agent),
+            vec![BindingTrigger::Direct((
+                KeyCode::PageDown,
+                KeyModifiers::CONTROL
+            ))]
         );
     }
 
