@@ -1,7 +1,7 @@
 # herdr-screen-bin: GNU screen edition of Herdr (static binary from GitHub release)
 # AUR contributors: use `makepkg --printsrcinfo > .SRCINFO` before submitting.
 pkgname=herdr-screen-bin
-pkgver=0.2.0
+pkgver=0.2.4
 pkgrel=1
 pkgdesc="GNU screen edition of the Herdr terminal workspace manager (static binary)"
 arch=('x86_64')
@@ -10,10 +10,29 @@ license=('Apache-2.0')
 depends=('openssh' 'git' 'curl')
 provides=('herdr-screen')
 conflicts=('herdr-screen')
-source=("herdr-screen-linux-x86_64::https://github.com/sadsfae/herdr-screen/releases/download/v${pkgver}/herdr-screen-linux-x86_64"
-        "LICENSE::https://raw.githubusercontent.com/sadsfae/herdr-screen/v${pkgver}/LICENSE")
-sha256sums=('9babbc0c05ec934efaedc3c470996f74ffba74ee0258c0ec3ae54402c0191cdc'
+source=("herdr-screen-linux-x86_64::https://github.com/sadsfae/herdr-screen/releases/latest/download/herdr-screen-linux-x86_64"
+        "SHA256SUMS::https://github.com/sadsfae/herdr-screen/releases/latest/download/SHA256SUMS"
+        "LICENSE::https://raw.githubusercontent.com/sadsfae/herdr-screen/main/LICENSE")
+# The binary hash is pinned by the release's own SHA256SUMS (verified in
+# build()); the version is rolling, so no static hash can cover it. LICENSE
+# is the project's Apache-2.0 text from main.
+sha256sums=('SKIP'
+            'SKIP'
             'c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4')
+
+pkgver() {
+  # Track the latest release: resolve the newest tag through the
+  # `releases/latest` redirect and keep only the semver part (prints 0.2.4
+  # for a v0.2.4-7802b16 tag), matching the release build versioning.
+  latest="$(curl -fsSL -o /dev/null -w '%{url_effective}' \
+    https://github.com/sadsfae/herdr-screen/releases/latest)"
+  tag="${latest##*/}"
+  printf '%s\n' "${tag#v}" | sed 's/-[0-9a-f]\{7,\}$//'
+}
+
+build() {
+  ( cd "$srcdir" && sha256sum -c --ignore-missing SHA256SUMS )
+}
 
 package() {
   install -Dm755 "$srcdir/herdr-screen-linux-x86_64" "$pkgdir/usr/bin/herdr-screen"
