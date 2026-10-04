@@ -28,6 +28,11 @@ Initial herdr-screen release: a GNU screen edition hard fork of Herdr 0.9.3
   without a version-relevant change publish nothing. Every published package
   has a distinct name-version-release, so `dnf update` upgrades normally
   instead of requiring a reinstall.
+- Arch: `packaging/AUR/PKGBUILD` now builds herdr-screen from source (needs
+  `rust` and `zig` 0.16.0 from extra), and the packages workflow builds it in
+  an Arch container and attaches `herdr-screen-<version>-1-x86_64.pkg.tar.zst`
+  to every version-bump release, so Arch and derivative users can install the
+  prebuilt package or `makepkg` it themselves without an AUR account.
 
 ## [0.2.0] - 2026-10-01
 
