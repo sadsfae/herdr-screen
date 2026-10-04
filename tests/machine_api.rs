@@ -22,7 +22,7 @@ case "$last" in
     '/bin/sh -c '*)
         if [ "$TEST_MODE" = offline ]; then echo 'test remote connection failed' >&2; exit 255; fi
         printf 'login banner\n'
-        PATH="$TEST_ROOT/remote bin:/usr/bin:/bin" exec /bin/sh -c "$last" ;;
+        PATH="$TEST_ROOT/remote bin" exec /bin/sh -c "$last" ;;
     '/bin/sh -s')
         script=$(cat)
         printf 'login banner\nherdr-remote-output-ready:1\n'
@@ -69,7 +69,7 @@ impl Harness {
         )
         .unwrap();
         fs::create_dir_all(root.join("remote bin")).unwrap();
-        let remote_wrapper = root.join("remote bin/herdr");
+        let remote_wrapper = root.join("remote bin/herdr-screen");
         fs::write(
             &remote_wrapper,
             r#"#!/bin/sh
@@ -292,7 +292,7 @@ fn machine_api_bootstrap_falls_back_from_an_old_path_binary() {
     fs::create_dir_all(harness.root.join(".local/bin")).unwrap();
     std::os::unix::fs::symlink(
         std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
-        harness.root.join(".local/bin/herdr"),
+        harness.root.join(".local/bin/herdr-screen"),
     )
     .unwrap();
     let server = harness.serve(
@@ -360,11 +360,11 @@ fn machine_api_reuses_discovery_across_commands_without_rewriting_profiles() {
 fn machine_api_recovers_a_stale_path_before_sending_a_mutation() {
     let harness = Harness::new();
     harness.warm_metadata();
-    fs::remove_file(harness.root.join("remote bin/herdr")).unwrap();
+    fs::remove_file(harness.root.join("remote bin/herdr-screen")).unwrap();
     fs::create_dir_all(harness.root.join(".local/bin")).unwrap();
     std::os::unix::fs::symlink(
         std::env::var("CARGO_BIN_EXE_herdr-screen").expect("CARGO_BIN_EXE_herdr-screen not set"),
-        harness.root.join(".local/bin/herdr"),
+        harness.root.join(".local/bin/herdr-screen"),
     )
     .unwrap();
     let before = harness.ssh_calls();
@@ -605,7 +605,7 @@ fn machine_api_usage_errors_do_not_connect() {
 #[test]
 fn machine_api_rejects_old_bridges_and_disconnected_machines() {
     for (mode, message) in [
-        ("old", "update Herdr"),
+        ("old", "update herdr-screen"),
         ("offline", "test remote connection failed"),
     ] {
         let harness = Harness::new();
