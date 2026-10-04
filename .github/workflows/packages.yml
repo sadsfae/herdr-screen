@@ -222,6 +222,121 @@ jobs:
             --data-binary "@$pkg" \
             "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$release_id/assets?name=$(basename "$pkg")"
 
+  # Build the macOS universal binary from both Apple architectures on a
+  # macos-latest runner and attach it to the same release, so Mac users get
+  # one zip that runs natively on Apple Silicon and Intel. x86_64 targets
+  # cross-compile from the arm64 runner, so no extra toolchain is needed
+  # beyond the Rust target and Zig, which the ghostty-vt build uses.
+  macos-package:
+    needs: build
+    if: needs.build.outputs.bumped == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 90
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      HERDR_BUILD_CHANNEL: herdr-screen
+      LIBGHOSTTY_VT_OPTIMIZE: ReleaseFast
+      LIBGHOSTTY_VT_SIMD: 'true'
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # v1
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN_VERSION }}
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Install macOS build tools
+        run: HOMEBREW_NO_AUTO_UPDATE=1 brew install cmake ninja
+
+      - name: Restore Zig compiler
+        id: zig-compiler
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/herdr-zig-0.16.0
+          key: zig-compiler-v1-${{ runner.os }}-${{ runner.arch }}-0.16.0
+
+      - name: Install Zig
+        if: steps.zig-compiler.outputs.cache-hit != 'true'
+        uses: vercel-labs/setup-zig@83c1594f26b86da8a9a8ddd9b5ee5f3af0f96943 # v1.0.2
+        with:
+          version: 0.16.0
+
+      - name: Stabilize Zig installation path
+        env:
+          ZIG_RESTORED: ${{ steps.zig-compiler.outputs.cache-hit }}
+        run: |
+          stable_zig="$RUNNER_TEMP/herdr-zig-0.16.0"
+          if [ "$ZIG_RESTORED" != "true" ]; then
+            mv "$(dirname "$(command -v zig)")" "$stable_zig"
+          fi
+          echo "$stable_zig" >> "$GITHUB_PATH"
+          echo "ZIG=$stable_zig/zig" >> "$GITHUB_ENV"
+
+      - name: Save Zig compiler
+        if: steps.zig-compiler.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/herdr-zig-0.16.0
+          key: zig-compiler-v1-${{ runner.os }}-${{ runner.arch }}-0.16.0
+
+      - name: Restore Cargo cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            .zig-cache
+          key: packages-macos-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
+
+      - name: Build both Apple architectures
+        run: |
+          cargo build --release --locked --target aarch64-apple-darwin
+          cargo build --release --locked --target x86_64-apple-darwin
+
+      - name: Merge universal binary
+        run: |
+          mkdir -p dist
+          lipo -create \
+            -output dist/herdr-screen \
+            target/aarch64-apple-darwin/release/herdr-screen \
+            target/x86_64-apple-darwin/release/herdr-screen
+          lipo -info dist/herdr-screen
+
+      - name: Package release zip
+        run: |
+          cp LICENSE NOTICE dist/
+          (cd dist && zip -q herdr-screen-macos-universal.zip herdr-screen LICENSE NOTICE)
+          (cd dist && shasum -a 256 -b herdr-screen-macos-universal.zip > SHA256SUMS-macos)
+
+      - name: Save Cargo cache
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            .zig-cache
+          key: packages-macos-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
+
+      - name: Attach artifacts to release
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            tag="v${VERSION}-${GITHUB_SHA::7}"
+          fi
+          gh release upload "$tag" \
+            --repo "$GITHUB_REPOSITORY" --clobber \
+            dist/herdr-screen-macos-universal.zip dist/SHA256SUMS-macos
+
   # Keep the README install commands and RELEASE_VERSION pointing at the
   # version actually published by the build job. Runs after every build so
   # install docs always target the newest release; updates are ignored by the

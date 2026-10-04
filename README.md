@@ -5,6 +5,7 @@
 <a href="https://github.com/sadsfae/herdr-screen/blob/main/packaging/AUR/PKGBUILD"><img src="https://img.shields.io/badge/AUR-Arch%20Linux-1793d1?logo=archlinux&logoColor=white" alt="AUR package for Arch Linux" /></a>
 <a href="https://github.com/sadsfae/herdr-screen/releases"><img src="https://img.shields.io/badge/Slackware-txz-2eb8e6?logo=slackware&logoColor=white" alt="Slackware package" /></a>
 <a href="https://github.com/sadsfae/herdr-screen/releases"><img src="https://img.shields.io/badge/FreeBSD-pkg-AB2B28?logo=freebsd&logoColor=white" alt="FreeBSD package" /></a>
+<a href="https://github.com/sadsfae/herdr-screen/releases"><img src="https://img.shields.io/badge/macOS-Universal%20Binary-black?logo=apple&logoColor=white" alt="macOS universal binary" /></a>
 
 herdr-screen is a GNU screen edition hard fork of [Herdr](https://github.com/herdrdev/herdr)
 (Apache-2.0, (C) the Herdr Project contributors), a terminal workspace manager for AI coding
@@ -39,8 +40,8 @@ ergonomics and infra tooling. In short:
   (`herdr-screen tab focus`) still moves the whole session.
 - No self-update: `herdr-screen update` is stubbed and version/manifest checks are off. Install
   updates from the [releases page](https://github.com/sadsfae/herdr-screen/releases): RPMs for
-  EL8/EL9/EL10 and Fedora 42-44, a deb for Debian/Ubuntu, an AUR package, a Slackware txz, and a
-  FreeBSD pkg.
+  EL8/EL9/EL10 and Fedora 42-44, a deb for Debian/Ubuntu, an AUR package, a Slackware txz, a
+  FreeBSD pkg, and a macOS universal binary.
 - Config and session state stay in Herdr's usual paths (`~/.config/herdr`,
   `~/.local/state/herdr`), so herdr-screen is a drop-in replacement for existing Herdr setups.
 - `herdr-screen logs <service> [more...]` opens a dedicated logs workspace with one pane per
@@ -52,7 +53,7 @@ ergonomics and infra tooling. In short:
   so you can reuse a layout as a template on another client or machine.
 - No curl to bash: native packages for Red Hat, Debian, Arch, Slackware, and FreeBSD.
 
-[Install](#install) · [RPM](#rpm) · [Deb](#deb) · [AUR](#aur) · [Slackware](#slackware) · [FreeBSD](#freebsd)
+[Install](#install) · [RPM](#rpm) · [Deb](#deb) · [AUR](#aur) · [Slackware](#slackware) · [FreeBSD](#freebsd) · [macOS](#macos)
 
 [About](#about)
 
@@ -126,6 +127,23 @@ installpkg herdr-screen-0.4.1-x86_64-1.txz
 ```bash
 pkg add https://github.com/sadsfae/herdr-screen/releases/latest/download/herdr-screen-0.4.1.pkg
 ```
+
+### macOS
+
+<img src="assets/macos.svg" alt="macOS" width="28" />
+
+Download the universal binary (works on Apple Silicon and Intel):
+
+```bash
+curl -LO https://github.com/sadsfae/herdr-screen/releases/latest/download/herdr-screen-macos-universal.zip
+unzip herdr-screen-macos-universal.zip
+./herdr-screen
+```
+
+> [!NOTE]
+> The macOS binary is not codesigned. If Gatekeeper blocks the first launch,
+> right-click the binary and choose Open, or run `xattr -d com.apple.quarantine herdr-screen`
+> once.
 
 then start it where the work lives:
 
