@@ -22,6 +22,12 @@ Initial herdr-screen release: a GNU screen edition hard fork of Herdr 0.9.3
   start-of-line jump works again. `ctrl+a ctrl+a` still toggles the last
   focused tab (`keys.last_tab = "prefix+prefix"`), and with `keys.last_tab`
   unset the double prefix still forwards the literal prefix as before.
+- Package releases now bump the version from the conventional commits since
+  the last release: `fix:` bumps the patch (0.2.3 -> 0.2.4), `feat:` bumps
+  the minor (0.2.3 -> 0.3.0), a `type!:` subject bumps the major, and pushes
+  without a version-relevant change publish nothing. Every published package
+  has a distinct name-version-release, so `dnf update` upgrades normally
+  instead of requiring a reinstall.
 
 ## [0.2.0] - 2026-10-01
 

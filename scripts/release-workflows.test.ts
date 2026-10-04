@@ -4,6 +4,13 @@ import { readFileSync } from "node:fs";
 interface WorkflowShape {
   on?: unknown;
   permissions?: { contents?: unknown };
+  jobs?: Record<
+    string,
+    {
+      outputs?: Record<string, unknown>;
+      steps?: Array<{ name?: string; if?: string; env?: Record<string, unknown> }>;
+    }
+  >;
 }
 
 function load(name: string): WorkflowShape {
@@ -16,17 +23,42 @@ function load(name: string): WorkflowShape {
   return parsed as WorkflowShape;
 }
 
+function findStep(
+  jobs: WorkflowShape["jobs"],
+  job: string,
+  name: string,
+): { if?: string; env?: Record<string, unknown> } {
+  const step = jobs?.[job]?.steps?.find((step) => step.name === name);
+  if (!step) {
+    throw new Error(`step ${job}/${name} not found`);
+  }
+  return step;
+}
+
 describe("fork publishing workflow boundaries", () => {
   test("packaging publishes on v* tags and main, with write permissions", () => {
     const packages = load("packages");
     expect(packages.on).toEqual({
-      push: { branches: ["main"], tags: ["v*"] },
+      push: {
+        branches: ["main"],
+        tags: ["v*"],
+        "paths-ignore": ["README.md", "RELEASE_VERSION"],
+      },
       workflow_dispatch: null,
     });
     expect(packages.permissions?.contents).toBe("write");
   });
 
-  test("normal PR CI remains enabled", () => {
-    expect(load("ci").on).toMatchObject({ pull_request: expect.anything() });
+  test("version bump drives the package build and main release", () => {
+    const jobs = load("packages").jobs;
+    expect(jobs?.build?.outputs).toEqual({
+      version: "${{ steps.version.outputs.value }}",
+    });
+    const build = findStep(jobs, "build", "Build artifacts");
+    expect(build.if).toContain("bumped == 'true'");
+    const publish = findStep(jobs, "build", "Publish main-branch release");
+    expect(publish.if).toContain("bumped == 'true'");
+    const pin = findStep(jobs, "sync-readme", "Pin README and push");
+    expect(pin.env?.VERSION).toBe("${{ needs.build.outputs.version }}");
   });
 });

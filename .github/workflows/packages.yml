@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+    # The sync-readme job pushes README/RELEASE_VERSION pins; those are not
+    # release-relevant and must not rebuild packages.
+    paths-ignore:
+      - README.md
+      - RELEASE_VERSION
   workflow_dispatch:
 
 permissions:
@@ -22,6 +27,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    outputs:
+      version: ${{ steps.version.outputs.value }}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -87,16 +94,37 @@ jobs:
         id: version
         run: |
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            # Normalize through the tag parser so per-push tags like
+            # v0.2.4-7802b16 publish as their clean semver (0.2.4).
+            value="$(python3 scripts/next_version.py --tag-version "$GITHUB_REF_NAME" 2>/dev/null || echo "${GITHUB_REF_NAME#v}")"
+            echo "value=$value" >> "$GITHUB_OUTPUT"
+            echo "bumped=true" >> "$GITHUB_OUTPUT"
           else
-            # Main-push builds carry the fork release version (bumped past the
-            # latest tagged release) from RELEASE_VERSION, so install docs and
-            # the `latest` release stay aligned while the runtime version in
-            # Cargo.toml remains independent for plugin compatibility.
-            echo "value=$(head -1 RELEASE_VERSION | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+            # Base the next version on the previous release tag (v0.2.3-<sha>
+            # or plain v0.2.2) so repeated main pushes advance the version
+            # instead of republishing the same 0.2.3-1 NVR. Only version tags
+            # count (nightly and other non-version tags are ignored), and when
+            # no version tag exists yet the whole history is scanned against
+            # RELEASE_VERSION so the first release still bumps.
+            last_tag="$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)"
+            base="$(head -1 RELEASE_VERSION | tr -d '[:space:]')"
+            if [[ -n "$last_tag" ]]; then
+              base="$(python3 scripts/next_version.py --tag-version "$last_tag")"
+              range="$last_tag..HEAD"
+            else
+              range="HEAD"
+            fi
+            next="$(python3 scripts/next_version.py --base "$base" --range "$range")"
+            echo "value=$next" >> "$GITHUB_OUTPUT"
+            if [[ "$next" == "$base" ]]; then
+              echo "bumped=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "bumped=true" >> "$GITHUB_OUTPUT"
+            fi
           fi
 
       - name: Build artifacts
+        if: steps.version.outputs.bumped == 'true'
         env:
           VERSION: ${{ steps.version.outputs.value }}
           HERDR_BUILD_CHANNEL: herdr-screen
@@ -120,13 +148,15 @@ jobs:
           update_release: true
           files: dist/*
 
-      # One release concept: a fresh release per main push. Tag each with the
-      # fork release version (RELEASE_VERSION) plus the commit SHA so every push
-      # is distinct; the GitHub `latest` release then always points at the
-      # newest main build. (A tagged v* push still becomes a formal snapshot
-      # release above.)
+      # One release concept: a release per version bump on main. Tag each with
+      # the fork release version plus the commit SHA so every published version
+      # is distinct from the last (0.2.3 -> 0.2.4 -> 0.3.0); the GitHub
+      # `latest` release then always points at the newest main build. Pushes
+      # without a version bump (docs:, ci:, chore:, ...) publish nothing, so
+      # RPM name-version-release stays unique and `dnf update` can upgrade.
       - name: Publish main-branch release
-        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+        if: (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+            && steps.version.outputs.bumped == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -135,9 +165,10 @@ jobs:
           gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
             --title "$tag" --notes "Built from ${GITHUB_SHA::7}" dist/*
 
-  # Keep the README install commands pointing at the released version. Runs on
-  # every main push and every tag push so install docs always target the newest
-  # release. Reads the version from RELEASE_VERSION (the fork release cadence).
+  # Keep the README install commands and RELEASE_VERSION pointing at the
+  # version actually published by the build job. Runs after every build so
+  # install docs always target the newest release; updates are ignored by the
+  # push trigger (paths-ignore) so they never re-enter the pipeline.
   sync-readme:
     needs: build
     runs-on: ubuntu-latest
@@ -148,14 +179,23 @@ jobs:
           ref: main
           persist-credentials: true
       - name: Pin README and push
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
         run: |
-          python3 scripts/sync-readme-version.py
-          if git diff --quiet README.md; then
+          if [[ "$GITHUB_REF" == refs/heads/main ]]; then
+            # Main pushes pin to the version just published. Tag pushes keep
+            # the old behavior (pin to RELEASE_VERSION) so re-pushing an old
+            # formal tag can never move the docs backward.
+            python3 scripts/sync-readme-version.py --version "$VERSION"
+          else
+            python3 scripts/sync-readme-version.py
+          fi
+          if git diff --quiet README.md RELEASE_VERSION; then
             echo "README already current"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add README.md
+          git add README.md RELEASE_VERSION
           git commit -m "docs: pin install commands to latest release"
           git push origin main

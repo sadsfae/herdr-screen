@@ -4,14 +4,17 @@
 The README install URLs use Github's `releases/latest/download/<asset>`
 resolver, so they always point at the newest release. The asset filenames
 embed the release version, so this script rewrites every `herdr-screen-<ver>` /
-`herdr-screen_<ver>` reference to match RELEASE_VERSION (the fork's release
-cadence, independent of the runtime version in Cargo.toml). Fails loudly if
-RELEASE_VERSION has no version. Exits 0 whether or not anything changed so
-callers can rely on `git diff` to detect an update.
+`herdr-screen_<ver>` reference to match the release version passed on the
+command line (or RELEASE_VERSION, the fork's release cadence, when no
+`--version` is given). With `--version`, RELEASE_VERSION is updated to match
+what was actually published. Fails loudly if the version is missing. Exits 0
+whether or not anything changed so callers can rely on `git diff` to detect
+an update.
 """
 
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -30,7 +33,14 @@ def release_version() -> str:
 
 
 def main() -> int:
-    version = release_version()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--version",
+        help="Published release version; also written to RELEASE_VERSION",
+    )
+    args = parser.parse_args()
+
+    version = args.version or release_version()
 
     text = README.read_text()
     # Migrate any old `releases/download/vX.Y.Z/` URLs to the latest resolver so
@@ -47,12 +57,18 @@ def main() -> int:
         lambda m: f"{m.group(1)}{version}",
         text,
     )
-    if new_text == text:
+    if new_text != text:
+        README.write_text(new_text)
+        print(f"README pinned to {version}")
+    else:
         print(f"README already at {version}")
-        return 0
 
-    README.write_text(new_text)
-    print(f"README pinned to {version}")
+    if args.version:
+        current = release_version()
+        if current != version:
+            RELEASE.write_text(f"{version}\n")
+            print(f"RELEASE_VERSION updated from {current} to {version}")
+
     return 0
 
 
