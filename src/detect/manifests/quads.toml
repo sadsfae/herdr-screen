@@ -1,0 +1,58 @@
+id = "quads"
+version = "2026.10.06.2"
+min_engine_version = 1
+updated_at = "2026-10-06T02:00:00Z"
+aliases = ["quads-client"]
+
+# QUADS Client (quads-client) is a cmd2-based interactive QUADS management
+# shell, not an AI harness. State signals:
+# - idle: its cmd2 prompt owns the last visible line.
+# - blocked: an interactive question or credential prompt is on screen.
+# - working: the live `track` move-progress table is rendering.
+# Signal provenance (quads-client upstream: https://github.com/quadsproject/quads-client):
+# - prompt: src/quads_client/shell.py `_update_prompt`.
+# - wizard/credential prompts: src/quads_client/commands/server.py,
+#   commands/user.py, commands/schedule.py (incl. `? [y/N]:` confirms).
+# - track captions: src/quads_client/commands/track.py.
+# Every rule is anchored to the last non-empty line so stale prompts or
+# tables further up in scrollback cannot keep a pane classified after the
+# user answers or stops tracking.
+
+[[rules]]
+id = "waiting_for_input"
+state = "blocked"
+priority = 950
+region = "bottom_non_empty_lines(1)"
+visible_blocker = true
+# Blocked anchors stay matched while the user types at a prompt (input()
+# echoes the typed text), but a Ctrl+C abort re-renders the cmd2 prompt on
+# the same line (e.g. "SSO Token: ✓ (quads-dev-SSM) > "), so the echoed tail
+# may not contain the prompt glyphs.
+any = [
+  { line_regex = ['^\s*(?:Enter a friendly name for this server|Enter server URL|Enable SSL certificate verification\?|Choice \[1/2/3\]|Add server anyway\?).*:[^\x{2713}\x{0021}\x{2717}\x{26A1}()<>\[\]]*$'] },
+  { line_regex = ['^\s*(?:Email|Password|SSO Token):[^\x{2713}\x{0021}\x{2717}\x{26A1}()<>\[\]]*$'] },
+  { line_regex = ['^\s*(?:Release|Terminate|Remove|Continue).*\?\s*\[[yY]/[Nn]\]:[^\x{2713}\x{0021}\x{2717}\x{26A1}()<>\[\]]*$'] },
+]
+
+[[rules]]
+id = "live_tracking"
+state = "working"
+priority = 900
+region = "bottom_non_empty_lines(1)"
+visible_working = true
+# Rich live table caption; the caption is the last line while tracking.
+# ponytail: single-line anchor; if a future quads-client version moves the
+# caption, add its title line to this rule instead of widening the region.
+line_regex = ['Refresh: \d+s \| Ctrl\+C to stop']
+
+[[rules]]
+id = "at_prompt"
+state = "idle"
+priority = 500
+region = "bottom_non_empty_lines(1)"
+visible_idle = true
+# Prompt shapes: "(disconnected) > ", "✓ (quads_prod) > ",
+# "✓ [1:dev* 2:prod] (quads1-dev) > ", "✗ (quads-test.local) ⚡ [ADMIN] > ".
+# Both connected and disconnected prompts always render a (short_name) /
+# (disconnected) group, so it is required to avoid phantom `> `-shaped lines.
+line_regex = ['^\s*(?:[\x{2713}\x{0021}\x{2717}])?\s*(?:\[[^\]]+\]\s*)?(?:\([^)]+\))\s*(?:\x{26A1})?\s*(?:\[[^\]]+\])?\s*>\s*$']
