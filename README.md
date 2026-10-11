@@ -53,6 +53,17 @@ ergonomics and infra tooling. In short:
   so you can reuse a layout as a template on another client or machine.
 - No curl to bash: native packages for Red Hat, Debian, Arch, Slackware, and FreeBSD.
 
+## Custom Agent Groups
+
+Beyond Herdr's coding-agent catalog, herdr-screen recognizes a few extra groups
+for the infrastructure work that shares the same panes:
+
+| Group | What it detects | How to use it |
+|-------|-----------------|---------------|
+| `quads` | the QUADS client management shell (cmd2) | run `quads-client`; the pane is identified from the `quads-client` process and its prompt, and its state is tracked in the sidebar |
+| Service logging | live `journalctl` / log-file watchers | `herdr-screen logs <service> ...` opens a workspace with one pane per service tailing its log; `logs-define <name> <command>` names a custom watcher |
+| `switch` | Juniper / Arista / Cisco switch SSH sessions | SSH into a switch (or `herdr-screen agent start --kind switch -- host`); the pane is identified from the device prompt / banner and its state is tracked |
+
 [Install](#install) · [RPM](#rpm) · [Deb](#deb) · [AUR](#aur) · [Slackware](#slackware) · [FreeBSD](#freebsd) · [macOS](#macos)
 
 [About](#about)
@@ -60,6 +71,8 @@ ergonomics and infra tooling. In short:
 [Quick Start Usage](#quick-start-usage)
 
 [Docs](#docs)
+
+[Custom Agent Groups](#custom-agent-groups)
 
 Licensing and attribution: Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
