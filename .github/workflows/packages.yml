@@ -234,6 +234,7 @@ jobs:
     timeout-minutes: 90
     env:
       VERSION: ${{ needs.build.outputs.version }}
+      HERDR_RELEASE_VERSION: ${{ needs.build.outputs.version }}
       HERDR_BUILD_CHANNEL: herdr-screen
       LIBGHOSTTY_VT_OPTIMIZE: ReleaseFast
       LIBGHOSTTY_VT_SIMD: 'true'
@@ -311,6 +312,11 @@ jobs:
 
       - name: Package release zip
         run: |
+          reported="$(dist/herdr-screen --version)"
+          if [[ "$reported" != "herdr-screen $VERSION "* ]]; then
+            echo "error: built binary reports '$reported', expected herdr-screen $VERSION" >&2
+            exit 1
+          fi
           cp LICENSE NOTICE dist/
           (cd dist && zip -q herdr-screen-macos-universal.zip herdr-screen LICENSE NOTICE)
           (cd dist && shasum -a 256 -b herdr-screen-macos-universal.zip > SHA256SUMS-macos)
