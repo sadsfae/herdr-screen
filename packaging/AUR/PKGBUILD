@@ -38,6 +38,9 @@ pkgver() {
 
 build() {
   cd herdr-screen-main
+  # The fetched snapshot still carries the previous release's RELEASE_VERSION;
+  # bake the packaged version so --version matches what the package ships.
+  export HERDR_RELEASE_VERSION="$pkgver"
   cargo build --release --locked
 }
 

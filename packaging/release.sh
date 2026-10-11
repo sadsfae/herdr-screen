@@ -10,6 +10,9 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 VERSION="${VERSION:-$(head -1 RELEASE_VERSION | tr -d '[:space:]')}"
+# The binary bakes the release version at compile time (build.rs); pass the
+# version the packages are named with so --version cannot lag a release.
+export HERDR_RELEASE_VERSION="$VERSION"
 REPO="https://github.com/sadsfae/herdr-screen"
 DIST="dist"
 ZIG="${ZIG:-/tmp/zig-x86_64-linux-0.16.0/zig}"
@@ -26,6 +29,12 @@ LIBGHOSTTY_VT_OPTIMIZE=ReleaseFast \
 LIBGHOSTTY_VT_SIMD=true \
   "$CARGO" build --release --target x86_64-unknown-linux-musl
 cp target/x86_64-unknown-linux-musl/release/herdr-screen "$DIST/herdr-screen-linux-x86_64"
+# Every package below ships this binary, so check the baked version once here.
+reported="$("$DIST/herdr-screen-linux-x86_64" --version)"
+if [[ "$reported" != "herdr-screen $VERSION "* ]]; then
+  echo "error: built binary reports '$reported', expected herdr-screen $VERSION" >&2
+  exit 1
+fi
 
 echo "== RPMs"
 TOP="$PWD/build-rpm"

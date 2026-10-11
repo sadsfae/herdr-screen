@@ -53,6 +53,13 @@ Initial herdr-screen release: a GNU screen edition hard fork of Herdr 0.9.3
   an Arch container and attaches `herdr-screen-<version>-1-x86_64.pkg.tar.zst`
   to every version-bump release, so Arch and derivative users can install the
   prebuilt package or `makepkg` it themselves without an AUR account.
+- Published packages now report their own release version. `--version` baked
+  the `RELEASE_VERSION` file at compile time, and that file is only pinned
+  after a release is published, so the 0.7.0 packages answered
+  `herdr-screen 0.6.0 (herdr 0.9.3)`. The release tooling (linux musl binary
+  and RPM/deb/Slackware/FreeBSD packages, the macOS universal binary, and the
+  AUR PKGBUILD) now passes the published version into the build, and the Linux
+  and macOS package builds fail if the built binary reports anything else.
 
 ## [0.2.0] - 2026-10-01
 
