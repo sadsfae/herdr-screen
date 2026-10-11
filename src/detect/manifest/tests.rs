@@ -789,3 +789,45 @@ contains = ["active"]
 "#;
     assert!(parse_manifest(manifest).is_err());
 }
+
+#[test]
+fn switch_manifest_classifies_prompts_pager_and_confirms() {
+    for screen in [
+        "admin@switch1> ",
+        "core-switch# ",
+        "core-switch(config-if-Et1)# ",
+        "[edit protocols ospf area 0.0.0.0]\nadmin@switch1#",
+        "device(bash)% ",
+    ] {
+        assert_eq!(
+            detect(Agent::Switch, screen).state,
+            AgentState::Idle,
+            "expected idle for {screen:?}"
+        );
+    }
+
+    for screen in [
+        "show interfaces\n--More--",
+        "show version | no-more\n--More--",
+    ] {
+        assert_eq!(
+            detect(Agent::Switch, screen).state,
+            AgentState::Working,
+            "expected working for {screen:?}"
+        );
+    }
+
+    for screen in [
+        "Exit with uncommitted changes? [yes,no] (yes)",
+        "Proceed with reload? [confirm]",
+        "Continue with configuration dialog? [yes/no]",
+        "Password: ",
+    ] {
+        assert_eq!(
+            detect(Agent::Switch, screen).state,
+            AgentState::Blocked,
+            "expected blocked for {screen:?}"
+        );
+    }
+
+}

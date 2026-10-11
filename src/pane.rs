@@ -655,12 +655,12 @@ fn sync_content_change_acquisition(
     }
 }
 
-#[derive(Debug, Clone)]
 struct ProcessProbeResult {
     process_group_id: Option<u32>,
     foreground_is_pane_shell: bool,
     agent: Option<Agent>,
     process_name: Option<String>,
+    network_client: bool,
 }
 
 fn agent_hint_for_foreground_job_members(
@@ -695,6 +695,40 @@ fn identify_process_group_leader_in_job(
     crate::detect::identify_agent_in_job(&leader_job)
 }
 
+fn job_has_network_client(job: &crate::platform::ForegroundJob) -> bool {
+    job.processes
+        .iter()
+        .any(|process| crate::detect::is_network_client_process_name(&process.name))
+}
+
+/// Resolve the agent to use for screen detection. A process-identified agent
+/// wins; otherwise an interactive network session whose tail matches a switch
+/// signature is classified as `switch`. Once a network session is identified as
+/// a switch it stays classified for the life of the session, so a momentary
+/// output frame without a visible prompt does not drop the pane to unknown.
+fn content_switch_agent(
+    process_agent: Option<Agent>,
+    content: &str,
+    network_client_active: bool,
+    content_switch_active: &mut bool,
+) -> Option<Agent> {
+    if process_agent.is_some() {
+        *content_switch_active = false;
+        return process_agent;
+    }
+    if network_client_active {
+        if crate::detect::recognize_switch_session(content) {
+            *content_switch_active = true;
+        }
+        if *content_switch_active {
+            return Some(Agent::Switch);
+        }
+        return None;
+    }
+    *content_switch_active = false;
+    None
+}
+
 fn process_probe_result(
     job: &crate::platform::ForegroundJob,
     pid: u32,
@@ -706,6 +740,7 @@ fn process_probe_result(
         foreground_is_pane_shell: job.processes.iter().any(|process| process.pid == pid),
         agent: Some(agent),
         process_name: Some(process_name),
+        network_client: job_has_network_client(job),
     }
 }
 
@@ -767,6 +802,7 @@ fn probe_foreground_process_from_jobs(
             foreground_is_pane_shell: job.processes.iter().any(|process| process.pid == pid),
             agent: identified.as_ref().map(|(agent, _)| *agent),
             process_name: identified.map(|(_, process_name)| process_name),
+            network_client: job_has_network_client(job),
         };
     }
 
@@ -775,6 +811,7 @@ fn probe_foreground_process_from_jobs(
         foreground_is_pane_shell: false,
         agent: None,
         process_name: None,
+        network_client: false,
     }
 }
 
@@ -821,6 +858,8 @@ fn spawn_basic_detection_task(
         let mut last_content_change_at = None;
         let mut pending_foreground_shell_clear = false;
         let mut foreground_shell_exit_reported = false;
+        let mut network_client_active = false;
+        let mut content_switch_active = false;
         let mut release_was_active = false;
         let mut last_detection_text = String::new();
         let mut last_screen_scan_detection_content_seq = None;
@@ -855,6 +894,8 @@ fn spawn_basic_detection_task(
                     last_content_change_at = None;
                     pending_foreground_shell_clear = false;
                     foreground_shell_exit_reported = false;
+                    network_client_active = false;
+                    content_switch_active = false;
                     release_was_active = false;
                     last_detection_text.clear();
                     last_screen_scan_detection_content_seq = None;
@@ -914,6 +955,7 @@ fn spawn_basic_detection_task(
                 let had_process_probe = has_process_probe;
                 has_process_probe = true;
                 let probe = probe_foreground_process(pid, foreground_pgid);
+                network_client_active = probe.network_client;
                 let process_group_id = probe.process_group_id;
                 let tracked_process_group_id =
                     process_group_for_change_tracking(foreground_pgid, process_group_id);
@@ -1032,10 +1074,16 @@ fn spawn_basic_detection_task(
             last_screen_scan_detection_content_seq = current_detection_content_seq;
             let content_changed = content != last_detection_text;
             last_detection_text.clone_from(&content);
+            let detection_agent = content_switch_agent(
+                agent,
+                &content,
+                network_client_active,
+                &mut content_switch_active,
+            );
             let osc_title = terminal.agent_osc_title();
             let osc_progress = terminal.agent_osc_progress();
             let screen_detection = detection_update_for_publish_with_osc(
-                agent,
+                detection_agent,
                 &content,
                 &osc_title,
                 &osc_progress,
@@ -1044,7 +1092,7 @@ fn spawn_basic_detection_task(
             publish_codex_prompt_observation(
                 &state_events,
                 pane_id,
-                agent,
+                detection_agent,
                 &content,
                 screen_detection.as_ref(),
                 process_exited,
@@ -1089,7 +1137,7 @@ fn spawn_basic_detection_task(
                     apply_agent_detection_publish_update(
                         state_events.clone(),
                         pane_id,
-                        agent,
+                        detection_agent,
                         AgentDetectionPublishUpdate {
                             state: new_state,
                             visible_idle,
@@ -2734,6 +2782,8 @@ impl PaneRuntime {
                 let mut last_content_change_at = None;
                 let mut pending_foreground_shell_clear = false;
                 let mut foreground_shell_exit_reported = false;
+                let mut network_client_active = false;
+                let mut content_switch_active = false;
                 let mut release_was_active = false;
                 let mut pending_restore_probe = initial_state.detected_agent.is_some();
                 let mut last_visible_blocker = false;
@@ -2757,7 +2807,7 @@ impl PaneRuntime {
                         TICK_PENDING_RELEASE
                     } else if pending_idle.active() {
                         AGENT_PENDING_IDLE_RECHECK
-                    } else if agent_presence.current_agent().is_none() {
+                    } else if agent_presence.current_agent().is_none() && !content_switch_active {
                         TICK_UNIDENTIFIED
                     } else {
                         TICK_IDENTIFIED
@@ -2778,6 +2828,8 @@ impl PaneRuntime {
                             last_content_change_at = None;
                             pending_foreground_shell_clear = false;
                             foreground_shell_exit_reported = false;
+                            network_client_active = false;
+                            content_switch_active = false;
                             release_was_active = false;
                             pending_restore_probe = false;
                             last_visible_blocker = false;
@@ -2869,6 +2921,7 @@ impl PaneRuntime {
                         has_process_probe = true;
                         if pid > 0 {
                             let probe = probe_foreground_process(pid, foreground_pgid);
+                            network_client_active = probe.network_client;
                             let process_name = probe.process_name;
                             let process_group_id = probe.process_group_id;
                             let tracked_process_group_id = process_group_for_change_tracking(
@@ -3029,10 +3082,16 @@ impl PaneRuntime {
                     last_screen_scan_detection_content_seq = current_detection_content_seq;
                     let content_changed = content != last_detection_text;
                     last_detection_text.clone_from(&content);
+                    let detection_agent = content_switch_agent(
+                        agent,
+                        &content,
+                        network_client_active,
+                        &mut content_switch_active,
+                    );
                     let osc_title = terminal.agent_osc_title();
                     let osc_progress = terminal.agent_osc_progress();
                     let screen_detection = detection_update_for_publish_with_osc(
-                        agent,
+                        detection_agent,
                         &content,
                         &osc_title,
                         &osc_progress,
@@ -3041,7 +3100,7 @@ impl PaneRuntime {
                     publish_codex_prompt_observation(
                         &state_events,
                         pane_id,
-                        agent,
+                        detection_agent,
                         &content,
                         screen_detection.as_ref(),
                         process_exited,
@@ -3086,7 +3145,7 @@ impl PaneRuntime {
                             apply_agent_detection_publish_update(
                                 state_events.clone(),
                                 pane_id,
-                                agent,
+                                detection_agent,
                                 AgentDetectionPublishUpdate {
                                     state: new_state,
                                     visible_idle,

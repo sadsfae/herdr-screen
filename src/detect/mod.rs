@@ -66,10 +66,11 @@ pub enum Agent {
     Maki,
     Muse,
     Quads,
+    Switch,
 }
 
 impl Agent {
-    pub const ALL: [Self; 25] = [
+    pub const ALL: [Self; 26] = [
         Self::Pi,
         Self::Claude,
         Self::Codex,
@@ -95,9 +96,9 @@ impl Agent {
         Self::Maki,
         Self::Muse,
         Self::Quads,
+        Self::Switch,
     ];
-
-    pub const SCREEN_MANIFEST_AGENTS: [Self; 23] = [
+    pub const SCREEN_MANIFEST_AGENTS: [Self; 24] = [
         Self::Pi,
         Self::Claude,
         Self::Codex,
@@ -121,6 +122,7 @@ impl Agent {
         Self::Maki,
         Self::Muse,
         Self::Quads,
+        Self::Switch,
     ];
 }
 
@@ -151,6 +153,7 @@ pub fn agent_label(agent: Agent) -> &'static str {
         Agent::Maki => "maki",
         Agent::Muse => "muse",
         Agent::Quads => "quads",
+        Agent::Switch => "switch",
     }
 }
 
@@ -187,6 +190,7 @@ pub fn interactive_agent_executable(agent: Agent) -> &'static str {
         Agent::Maki => "maki",
         Agent::Muse => "muse",
         Agent::Quads => "quads-client",
+        Agent::Switch => "ssh",
     }
 }
 
@@ -228,6 +232,7 @@ fn lookup_agent(name: &str) -> Option<Agent> {
         "maki" => Some(Agent::Maki),
         "muse" | "muse-code" | "muse-cli" => Some(Agent::Muse),
         "quads" | "quads-client" | "quads client" => Some(Agent::Quads),
+        "switch" | "network-device" => Some(Agent::Switch),
         _ if is_muse_versioned_binary(name) => Some(Agent::Muse),
         _ => None,
     }
@@ -835,6 +840,58 @@ fn path_basename(path: &str) -> &str {
         .unwrap_or(path)
 }
 
+/// True when a foreground process name is an interactive network login client
+/// (the common way to reach a managed switch). Switches are reached over an
+/// interactive SSH or telnet session, so a running client is the gate for
+/// attempting content-based switch identification.
+pub fn is_network_client_process_name(name: &str) -> bool {
+    let base = normalized_agent_lookup_name(path_basename(name));
+    matches!(base.as_str(), "ssh" | "telnet" | "slogin")
+}
+
+/// Compile-once switch signatures. Every pattern is line-anchored and excludes
+/// the `:` path and `~` that a normal Linux/BSD shell prompt carries, so a
+/// plain shell (e.g. `user@host:~$`, `root@host:~#`) never matches.
+fn switch_signature_regexes() -> &'static [regex::Regex] {
+    static REGEXES: std::sync::LazyLock<Vec<regex::Regex>> = std::sync::LazyLock::new(|| {
+        [
+            // Juniper JunOS login banner (strong vendor signature).
+            r"^---\s*JUNOS\s+\S+",
+            // Juniper config breadcrumb banner (e.g. "[edit protocols ospf]").
+            r"^\[edit[^\]]*\]\s*$",
+            // Juniper operational prompt: user@host> (no `:` path, no `~`).
+            r"^\S+@[^:\s>]+>\s?$",
+            // Juniper config prompt: user@host#.
+            r"^\S+@[^:\s#]+#\s?$",
+            // Arista / Cisco / EOS config and sub-config prompt: host(config...)#.
+            r"^[A-Za-z0-9][A-Za-z0-9._-]*\(config(?:-[^)]+)?\)#\s?$",
+            // EOS shell: host(bash)%.
+            r"^[A-Za-z0-9][A-Za-z0-9._-]*\(bash\)%\s?$",
+            // Arista / Cisco user/privileged EXEC prompt: bare host> / host#.
+            r"^[A-Za-z0-9][A-Za-z0-9._-]*[>#]\s?$",
+        ]
+        .iter()
+        .map(|pattern| regex::Regex::new(pattern).expect("valid switch signature"))
+        .collect()
+    });
+    &REGEXES
+}
+
+/// True when the recent terminal tail shows a network-switch session. Used to
+/// identify a pane (whose foreground process is an SSH/telnet client) as a
+/// `switch` agent; the switch screen manifest then classifies its state.
+pub fn recognize_switch_session(screen: &str) -> bool {
+    switch_signature_regexes()
+        .iter()
+        .any(|signature| {
+            screen
+                .lines()
+                .rev()
+                .take(8)
+                .any(|line| signature.is_match(line.trim_end_matches('\r')))
+        })
+}
+
 fn process_priority(process: &crate::platform::ForegroundProcess, normalized_name: &str) -> u8 {
     let lower_name = normalized_name.to_lowercase();
     if lower_name != process.name.to_lowercase() {
@@ -992,6 +1049,8 @@ mod tests {
         assert_eq!(parse_agent_label("kilo-code"), Some(Agent::Kilo));
         assert_eq!(parse_agent_label("quads-client"), Some(Agent::Quads));
         assert_eq!(parse_agent_label("quads"), Some(Agent::Quads));
+        assert_eq!(parse_agent_label("switch"), Some(Agent::Switch));
+        assert_eq!(parse_agent_label("network-device"), Some(Agent::Switch));
     }
 
     #[test]
@@ -1038,6 +1097,7 @@ mod tests {
             (Agent::Maki, "maki"),
             (Agent::Muse, "muse"),
             (Agent::Quads, "quads-client"),
+            (Agent::Switch, "ssh"),
         ];
         assert_eq!(expected.len(), Agent::ALL.len());
         for (agent, executable) in expected {
@@ -1089,6 +1149,59 @@ mod tests {
         assert_eq!(identify_agent("muse-bin"), None);
         assert_eq!(identify_agent("muse-bin-"), None);
         assert_eq!(identify_agent("muse-binary"), None);
+    }
+
+    #[test]
+    fn network_client_process_names_are_recognized() {
+        assert!(is_network_client_process_name("ssh"));
+        assert!(is_network_client_process_name("/usr/bin/ssh"));
+        assert!(is_network_client_process_name("ssh.exe"));
+        assert!(is_network_client_process_name("telnet"));
+        assert!(is_network_client_process_name("slogin"));
+        assert!(!is_network_client_process_name("bash"));
+        assert!(!is_network_client_process_name("zsh"));
+        assert!(!is_network_client_process_name("scp"));
+        assert!(!is_network_client_process_name("quads-client"));
+    }
+
+    #[test]
+    fn recognizes_switch_sessions_from_prompt_and_banner() {
+        for screen in [
+            // Juniper JunOS EVO login banner.
+            "Last login: Thu Oct  8 14:29:57 2026\n--- JUNOS 23.4R2-S6.9-EVO Linux (none) 5.2.60-yocto-standard-g644b307 #1 SMP PREEMPT x86_64 GNU/Linux",
+            // Juniper operational prompt.
+            "admin@switch1> ",
+            // Juniper config breadcrumb and prompt.
+            "[edit protocols ospf area 0.0.0.0]\nadmin@switch1#",
+            // Arista / Cisco privileged EXEC prompt.
+            "core-switch# ",
+            // Arista / Cisco config prompt.
+            "core-switch(config-if-Et1)# ",
+            // EOS bash shell.
+            "device(bash)% ",
+        ] {
+            assert!(
+                recognize_switch_session(screen),
+                "expected switch session for {screen:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn does_not_recognize_plain_shell_prompts_as_switch_sessions() {
+        for screen in [
+            "user@workstation:~$ ",
+            "root@workstation:/var/log# ",
+            "bash-5.2$ ",
+            "user@host:~# ",
+            "",
+            "just some output line\nmore output",
+        ] {
+            assert!(
+                !recognize_switch_session(screen),
+                "unexpected switch session for {screen:?}"
+            );
+        }
     }
 
     #[test]

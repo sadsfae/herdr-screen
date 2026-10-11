@@ -1,0 +1,62 @@
+id = "switch"
+version = "2026.10.11.1"
+min_engine_version = 1
+updated_at = "2026-10-11T00:00:00Z"
+
+# Network switch (or router) sessions reached over an interactive SSH / telnet
+# login. No hostname, vendor brand, or environment string is matched, so these
+# rules apply to any deployment. Prompts are vendor-scoped:
+# - Juniper JunOS / JunOS EVO: user@host> (operational), user@host# (config),
+#   with an `[edit ...]` breadcrumb line above the config prompt.
+# - Arista EOS / Cisco IOS(-XE): host> (user EXEC), host# (privileged EXEC),
+#   host(config...)# (config and sub-modes). EOS shell: host(bash)%.
+# A normal Linux/BSD shell prompt (user@host:~$, root@host:~#) never matches
+# because it carries a `:` path and `~`, which these patterns exclude.
+# Every rule is anchored to the last non-empty line so stale prompts further up
+# in scrollback cannot keep a pane classified after the user logs out.
+
+[[rules]]
+id = "interactive_prompt"
+state = "blocked"
+priority = 950
+region = "bottom_non_empty_lines(1)"
+visible_blocker = true
+# Credential prompt and interactive confirmations. Juniper confirmations end
+# with a bracketed default, e.g. "Exit with uncommitted changes? [yes,no] (yes)";
+# Cisco asks "Proceed with reload? [confirm]" / "[yes/no]".
+any = [
+  { line_regex = ['^\s*(?:Password|passphrase):?\s*$'] },
+  { line_regex = ['\?\s*\[[^\]]*(?:yes|no|y|n|confirm)[^\]]*\]'] },
+  { line_regex = ['\?\s*.*\(?(?:yes|no|y|n)\)?\s*$'] },
+  { line_regex = ['\b(?:yes|no|y|n)\b\s*\(?(?:yes|no|y|n)\)?\s*$'] },
+]
+
+[[rules]]
+id = "paged_output"
+state = "working"
+priority = 900
+region = "bottom_non_empty_lines(1)"
+visible_working = true
+# The device is paginating a long output listing (press Space/Enter to continue).
+line_regex = ['^\s*\*?\s*--More--\s*$']
+
+[[rules]]
+id = "at_prompt"
+state = "idle"
+priority = 500
+region = "bottom_non_empty_lines(1)"
+visible_idle = true
+any = [
+  # Juniper operational prompt: user@host> (no `:` path, no `~`).
+  { line_regex = ['^\S+@[^:\s>]+>\s?$'] },
+  # Juniper config prompt: user@host#.
+  { line_regex = ['^\S+@[^:\s#]+#\s?$'] },
+  # Arista / Cisco user EXEC prompt: bare host>.
+  { line_regex = ['^[A-Za-z0-9][A-Za-z0-9._-]*>\s?$'] },
+  # Arista / Cisco privileged EXEC prompt: bare host# (allow a session suffix).
+  { line_regex = ['^[A-Za-z0-9][A-Za-z0-9._-]*(?:\(s[12]\))?#\s?$'] },
+  # Arista / Cisco / EOS config and sub-config prompt: host(config...)#.
+  { line_regex = ['^[A-Za-z0-9][A-Za-z0-9._-]*\(config(?:-[^)]+)?\)#\s?$'] },
+  # EOS shell: host(bash)%.
+  { line_regex = ['^[A-Za-z0-9][A-Za-z0-9._-]*\(bash\)%\s?$'] },
+]
