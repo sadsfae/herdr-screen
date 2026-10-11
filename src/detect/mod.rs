@@ -851,13 +851,15 @@ pub fn is_network_client_process_name(name: &str) -> bool {
 
 /// Compile-once switch signatures used only for identification. Every pattern
 /// is line-anchored and excludes the `:` path and `~` that a normal Linux/BSD
-/// shell prompt carries, so a plain shell (e.g. `user@host:~$`,
-/// `root@host:~#`) never matches. A bare `host>` / `host#` EXEC prompt is
-/// deliberately NOT an identity signal: a Linux box whose PS1 is just the
-/// hostname presents exactly the same line, so such a session must not be
-/// classified as a switch. Arista/Cisco EXEC-only sessions are picked up once
-/// the session shows a stronger signature (config mode, or `agent start
-/// --kind switch`).
+/// shell prompt carries, so a plain shell with a path component (e.g.
+/// `user@host:~$`, `root@host:~#`) never matches; a PS1 without a path
+/// (`user@host#`) is indistinguishable from a JunOS prompt and does match.
+/// A bare `host>` / `host#` EXEC prompt is deliberately NOT an identity
+/// signal: a Linux box whose PS1 is just the hostname presents exactly the
+/// same line, so such a session must not be classified as a switch.
+/// Arista/Cisco EXEC-only sessions are picked up once the session shows a
+/// stronger signature (config mode), or via `agent start --kind switch`,
+/// which seeds the pane's identity from the launched ssh process.
 fn switch_signature_regexes() -> &'static [regex::Regex] {
     static REGEXES: std::sync::LazyLock<Vec<regex::Regex>> = std::sync::LazyLock::new(|| {
         [
@@ -866,13 +868,13 @@ fn switch_signature_regexes() -> &'static [regex::Regex] {
             // Juniper config breadcrumb banner (e.g. "[edit protocols ospf]").
             r"^\[edit[^\]]*\]\s*$",
             // Juniper operational prompt: user@host> (no `:` path, no `~`).
-            r"^\S+@[^:\s>]+>\s?$",
+            r"^\S+@[^:\s>]+>\s*$",
             // Juniper config prompt: user@host#.
-            r"^\S+@[^:\s#]+#\s?$",
+            r"^\S+@[^:\s#]+#\s*$",
             // Arista / Cisco / EOS config and sub-config prompt: host(config...)#.
-            r"^[A-Za-z0-9][A-Za-z0-9._-]*\(config(?:-[^)]+)?\)#\s?$",
+            r"^[A-Za-z0-9][A-Za-z0-9._-]*\(config(?:-[^)]+)?\)#\s*$",
             // EOS shell: host(bash)%.
-            r"^[A-Za-z0-9][A-Za-z0-9._-]*\(bash\)%\s?$",
+            r"^[A-Za-z0-9][A-Za-z0-9._-]*\(bash\)%\s*$",
         ]
         .iter()
         .map(|pattern| regex::Regex::new(pattern).expect("valid switch signature"))
@@ -1178,7 +1180,10 @@ mod tests {
             // Arista / Cisco / EOS config prompt (strong identity signal).
             "core-switch(config-if-Et1)# ",
             // EOS bash shell.
-            "device(bash)% ",
+            "device(bash)%  ",
+            // Prompts padded with extra trailing spaces.
+            "admin@switch1>  ",
+            "admin@switch1#  ",
         ] {
             assert!(
                 recognize_switch_session(screen),
@@ -1194,7 +1199,7 @@ mod tests {
             "root@workstation:/var/log# ",
             "bash-5.2$ ",
             "hostname# ",
-            "hostname> ",
+            "hostname#   ",
             "user@host:~# ",
             "",
             "just some output line\nmore output",

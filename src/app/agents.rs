@@ -198,6 +198,15 @@ impl App {
         argv.extend(params.args);
         let command = crate::platform::interactive_shell_command(&argv, &shell_name)
             .ok_or(AgentStartError::InvalidArgument)?;
+        // A switch session is identified from screen content, which cannot
+        // confirm a launch that lands on a bare EXEC prompt. Seeding the
+        // self-reported agent hint makes the ssh process itself identify the
+        // pane, so the managed launch confirms from the manifest idle rule.
+        let command = if kind == crate::detect::Agent::Switch {
+            format!("HERDR_AGENT=switch {command}")
+        } else {
+            command
+        };
         let bytes = crate::app::api_helpers::encode_api_submission(runtime, &command);
         let timeout = Duration::from_millis(
             params
@@ -443,6 +452,15 @@ fn live_runtime_agent(runtime: &crate::terminal::TerminalRuntime) -> Option<crat
             job.processes
                 .iter()
                 .find_map(|process| crate::platform::process_agent_hint(process.pid))
+        })
+        .or_else(|| {
+            // A switch pane is identified from screen content, not from a
+            // process name, so the ssh/telnet client standing in the
+            // foreground is the process-side evidence for it.
+            job.processes
+                .iter()
+                .any(|process| crate::detect::is_network_client_process_name(&process.name))
+                .then_some(crate::detect::Agent::Switch)
         })
 }
 
