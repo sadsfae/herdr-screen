@@ -32,8 +32,9 @@ Initial herdr-screen release: a GNU screen edition hard fork of Herdr 0.9.3
   paginated (`--More--`, `---- More ----`, JunOS `---(more)---` /
   `---(more NN%)---`), and `blocked` at an interactive confirmation or
   credential prompt. `herdr agent start --kind switch` opens an interactive
-  SSH session seeded as the expected agent, so it becomes ready as soon as
-  the device shows an idle prompt, including a bare EXEC prompt.
+  SSH session seeded as the expected agent on Linux and macOS, so it becomes
+  ready as soon as the device shows an idle prompt, including a bare EXEC
+  prompt.
 
 ### Fixed
 - `ctrl+a a` (prefix followed by the bare prefix key) now sends a literal

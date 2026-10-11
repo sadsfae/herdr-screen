@@ -1,7 +1,7 @@
 id = "switch"
-version = "2026.10.11.1"
+version = "2026.10.11.2"
 min_engine_version = 1
-updated_at = "2026-10-11T00:00:00Z"
+updated_at = "2026-10-11T20:32:50Z"
 
 # Network switch (or router) sessions reached over an interactive SSH / telnet
 # login. No hostname, vendor brand, or environment string is matched, so these
