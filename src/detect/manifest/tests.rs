@@ -829,5 +829,4 @@ fn switch_manifest_classifies_prompts_pager_and_confirms() {
             "expected blocked for {screen:?}"
         );
     }
-
 }

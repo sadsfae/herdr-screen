@@ -881,15 +881,13 @@ fn switch_signature_regexes() -> &'static [regex::Regex] {
 /// identify a pane (whose foreground process is an SSH/telnet client) as a
 /// `switch` agent; the switch screen manifest then classifies its state.
 pub fn recognize_switch_session(screen: &str) -> bool {
-    switch_signature_regexes()
-        .iter()
-        .any(|signature| {
-            screen
-                .lines()
-                .rev()
-                .take(8)
-                .any(|line| signature.is_match(line.trim_end_matches('\r')))
-        })
+    switch_signature_regexes().iter().any(|signature| {
+        screen
+            .lines()
+            .rev()
+            .take(8)
+            .any(|line| signature.is_match(line.trim_end_matches('\r')))
+    })
 }
 
 fn process_priority(process: &crate::platform::ForegroundProcess, normalized_name: &str) -> u8 {
