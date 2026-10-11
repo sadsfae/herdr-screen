@@ -3931,6 +3931,47 @@ mod tests {
     use super::*;
     use std::ffi::OsStr;
 
+    #[test]
+    fn content_switch_agent_latches_and_clears_with_the_network_client_gate() {
+        // A process-identified agent always wins and clears the latch.
+        let mut latch = false;
+        assert_eq!(
+            content_switch_agent(Some(Agent::Pi), "admin@switch1> ", true, &mut latch),
+            Some(Agent::Pi)
+        );
+        assert!(!latch);
+
+        // A switch signature while a network client owns the foreground sets
+        // the latch, and a later frame without a prompt keeps it.
+        let mut latch = false;
+        assert_eq!(
+            content_switch_agent(None, "admin@switch1> ", true, &mut latch),
+            Some(Agent::Switch)
+        );
+        assert!(latch);
+        assert_eq!(
+            content_switch_agent(None, "show interfaces brief output", true, &mut latch),
+            Some(Agent::Switch)
+        );
+        assert!(latch);
+
+        // No signature and no latch: unidentified.
+        let mut latch = false;
+        assert_eq!(
+            content_switch_agent(None, "user@workstation:~$ ", true, &mut latch),
+            None
+        );
+        assert!(!latch);
+
+        // The network client leaving the foreground clears the latch.
+        let mut latch = true;
+        assert_eq!(
+            content_switch_agent(None, "user@workstation:~$ ", false, &mut latch),
+            None
+        );
+        assert!(!latch);
+    }
+
     #[tokio::test]
     async fn clear_pane_preserves_wrapped_input_and_unfinished_vt_sequence() {
         let (runtime, mut rx) = PaneRuntime::test_with_channel_and_scrollback_bytes(

@@ -794,6 +794,7 @@ contains = ["active"]
 fn switch_manifest_classifies_prompts_pager_and_confirms() {
     for screen in [
         "admin@switch1> ",
+        "admin@switch1>  ",
         "core-switch# ",
         "core-switch(config-if-Et1)# ",
         "[edit protocols ospf area 0.0.0.0]\nadmin@switch1#",
@@ -809,6 +810,9 @@ fn switch_manifest_classifies_prompts_pager_and_confirms() {
     for screen in [
         "show interfaces\n--More--",
         "show version | no-more\n--More--",
+        "show interfaces\n---- More ----",
+        "show interfaces\n---(more)---",
+        "show interfaces\n---(more 50%)---",
     ] {
         assert_eq!(
             detect(Agent::Switch, screen).state,
