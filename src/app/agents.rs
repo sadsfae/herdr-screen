@@ -202,8 +202,12 @@ impl App {
         // confirm a launch that lands on a bare EXEC prompt. Seeding the
         // self-reported agent hint makes the ssh process itself identify the
         // pane, so the managed launch confirms from the manifest idle rule.
+        // `env` keeps the assignment scoped to the ssh process and parses
+        // under every shell, including PowerShell; the hint is only read back
+        // on Linux and macOS (src/platform/mod.rs).
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
         let command = if kind == crate::detect::Agent::Switch {
-            format!("HERDR_AGENT=switch {command}")
+            format!("env HERDR_AGENT=switch {command}")
         } else {
             command
         };
