@@ -22,6 +22,16 @@ Initial herdr-screen release: a GNU screen edition hard fork of Herdr 0.9.3
   default `ctrl+pagedown` / `ctrl+pageup`). Previously these actions were
   unbound; the key names `pageup`/`pagedown` (`pgup`/`pgdn`) are now valid
   in keybindings so the bindings can be changed or unset in `config.toml`.
+- SSH sessions to managed network switches (Juniper JunOS / JunOS EVO, Arista
+  EOS, Cisco IOS / IOS-XE) are now detected as a `switch` sidebar agent. A pane
+  whose foreground process is an SSH or telnet client is classified from its
+  on-screen prompt / banner (Juniper `user@host>` / `user@host#` and the
+  `--- JUNOS ...` / `[edit ...]` banners; Arista/Cisco `host>` / `host#` /
+  `host(config...)#`; EOS `host(bash)%`) rather than from any hostname or
+  environment string. The switch state is `idle` at the device prompt, `working`
+  while output is paginated at `--More--`, and `blocked` at an interactive
+  confirmation or credential prompt. `herdr agent start --kind switch` opens an
+  interactive SSH session and then detects the device.
 
 ### Fixed
 - `ctrl+a a` (prefix followed by the bare prefix key) now sends a literal
