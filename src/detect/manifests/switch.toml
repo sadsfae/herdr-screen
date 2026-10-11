@@ -12,6 +12,11 @@ updated_at = "2026-10-11T00:00:00Z"
 #   host(config...)# (config and sub-modes). EOS shell: host(bash)%.
 # A normal Linux/BSD shell prompt (user@host:~$, root@host:~#) never matches
 # because it carries a `:` path and `~`, which these patterns exclude.
+# The bare host> / host# EXEC forms are state rules only, applied after the
+# pane is identified as a switch: on their own they also match a hostname-only
+# Linux PS1, so they are not an identity signal (an Arista/Cisco EXEC-only
+# session that never enters config mode is picked up via `agent start --kind
+# switch`).
 # Every rule is anchored to the last non-empty line so stale prompts further up
 # in scrollback cannot keep a pane classified after the user logs out.
 
