@@ -134,6 +134,10 @@ pub struct TerminalState {
     /// session showed one. Display-only (`sw-juniper`); the agent kind stays
     /// `switch`.
     pub detected_switch_vendor: Option<crate::detect::SwitchVendor>,
+    /// Short host name of a switch pane whose ssh destination matched a
+    /// configured switch host (`[switches] hosts`). Display-only (`core-sw1`),
+    /// preferred over the vendor label.
+    pub detected_switch_host: Option<String>,
     pub fallback_state: AgentState,
     fallback_visible_blocker: bool,
     fallback_observed_at: Option<Instant>,
@@ -175,6 +179,7 @@ impl TerminalState {
             cwd,
             detected_agent: None,
             detected_switch_vendor: None,
+            detected_switch_host: None,
             fallback_state: AgentState::Unknown,
             fallback_visible_blocker: false,
             fallback_observed_at: None,
@@ -433,6 +438,7 @@ impl TerminalState {
         self.detected_agent = agent;
         if agent != Some(Agent::Switch) {
             self.detected_switch_vendor = None;
+            self.detected_switch_host = None;
         }
         if process_exited || agent != Some(Agent::Codex) || fallback_state == AgentState::Blocked {
             self.codex_prompt_ready = false;
@@ -1859,6 +1865,7 @@ impl TerminalState {
         if !process_owns_agent {
             self.detected_agent = None;
             self.detected_switch_vendor = None;
+            self.detected_switch_host = None;
             self.fallback_state = AgentState::Unknown;
             self.fallback_visible_blocker = false;
             self.fallback_observed_at = None;
@@ -1910,6 +1917,7 @@ impl TerminalState {
         self.set_reported_resume(None);
         self.detected_agent = None;
         self.detected_switch_vendor = None;
+        self.detected_switch_host = None;
         self.fallback_state = AgentState::Unknown;
         self.fallback_visible_blocker = false;
         self.fallback_observed_at = None;
@@ -2059,27 +2067,33 @@ impl TerminalState {
             })
     }
 
-    /// Record the vendor proven by a switch pane's identifying signatures.
-    /// Returns whether the stored value changed.
-    pub fn set_detected_switch_vendor(
+    /// Record the vendor and configured host title proven for a switch pane.
+    /// Returns whether the stored values changed.
+    pub fn set_detected_switch_identity(
         &mut self,
         vendor: Option<crate::detect::SwitchVendor>,
+        host: Option<String>,
     ) -> bool {
-        if self.detected_switch_vendor == vendor {
+        if self.detected_switch_vendor == vendor && self.detected_switch_host == host {
             return false;
         }
         self.detected_switch_vendor = vendor;
+        self.detected_switch_host = host;
         true
     }
 
-    /// Display label for a switch pane whose vendor is known (`sw-juniper`).
-    /// A user-set display label or agent name always wins, so this is only a
-    /// fallback for panes that would otherwise show the plain agent label.
-    pub fn switch_vendor_label(&self) -> Option<String> {
+    /// Display label for a switch pane whose vendor or configured host is known
+    /// (`core-sw1`, `sw-juniper`). A user-set display label or agent name always
+    /// wins, so this is only a fallback for panes that would otherwise show the
+    /// plain agent label.
+    pub fn switch_display_label(&self) -> Option<String> {
         if self.agent_name.is_some()
             || self.effective_agent_label() != Some(crate::detect::agent_label(Agent::Switch))
         {
             return None;
+        }
+        if let Some(host) = self.detected_switch_host.as_ref() {
+            return Some(host.clone());
         }
         self.detected_switch_vendor
             .map(|vendor| vendor.label().to_string())
@@ -2363,6 +2377,7 @@ impl TerminalState {
     pub fn clear_agent_runtime_identity_after_respawn(&mut self) {
         self.detected_agent = None;
         self.detected_switch_vendor = None;
+        self.detected_switch_host = None;
         self.fallback_state = AgentState::Unknown;
         self.fallback_visible_blocker = false;
         self.fallback_observed_at = None;
@@ -2504,28 +2519,43 @@ mod tests {
     }
 
     #[test]
-    fn switch_vendor_label_requires_a_switch_agent_and_yields_to_user_names() {
+    fn switch_display_label_prefers_the_host_and_yields_to_user_names() {
         let mut terminal = test_terminal();
-        assert_eq!(terminal.switch_vendor_label(), None);
+        assert_eq!(terminal.switch_display_label(), None);
 
         terminal.detected_agent = Some(Agent::Switch);
-        assert!(terminal.set_detected_switch_vendor(Some(crate::detect::SwitchVendor::Arista)));
-        assert_eq!(terminal.switch_vendor_label().as_deref(), Some("sw-arista"));
-        assert!(!terminal.set_detected_switch_vendor(Some(crate::detect::SwitchVendor::Arista)));
+        assert!(
+            terminal.set_detected_switch_identity(Some(crate::detect::SwitchVendor::Arista), None)
+        );
+        assert_eq!(
+            terminal.switch_display_label().as_deref(),
+            Some("sw-arista")
+        );
+
+        // A configured host title outranks the vendor label.
+        assert!(terminal.set_detected_switch_identity(
+            Some(crate::detect::SwitchVendor::Arista),
+            Some("core-sw1".into())
+        ));
+        assert_eq!(terminal.switch_display_label().as_deref(), Some("core-sw1"));
+        assert!(!terminal.set_detected_switch_identity(
+            Some(crate::detect::SwitchVendor::Arista),
+            Some("core-sw1".into())
+        ));
 
         // A user-set agent name always wins.
         terminal.agent_name = Some("sw1".into());
-        assert_eq!(terminal.switch_vendor_label(), None);
+        assert_eq!(terminal.switch_display_label(), None);
 
         // The label only applies while the pane is a switch agent.
         terminal.agent_name = None;
         terminal.detected_agent = Some(Agent::Claude);
-        assert_eq!(terminal.switch_vendor_label(), None);
+        assert_eq!(terminal.switch_display_label(), None);
 
-        // Losing the vendor drops the label.
+        // Losing the identity drops the label.
         terminal.detected_agent = Some(Agent::Switch);
-        assert!(terminal.set_detected_switch_vendor(None));
-        assert_eq!(terminal.switch_vendor_label(), None);
+        assert!(terminal.set_detected_switch_identity(None, None));
+        assert_eq!(terminal.switch_display_label(), None);
     }
 
     fn anchor_full_lifecycle_session(

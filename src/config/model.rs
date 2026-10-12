@@ -325,6 +325,7 @@ pub struct Config {
     pub advanced: AdvancedConfig,
     pub experimental: ExperimentalConfig,
     pub remote: RemoteConfig,
+    pub switches: SwitchesConfig,
 }
 
 #[derive(Debug)]
@@ -1096,6 +1097,21 @@ impl Default for RemoteConfig {
     }
 }
 
+/// Switches declared by the operator. A hostname or glob pattern matched
+/// against the destination of a pane's ssh/telnet client identifies that pane
+/// as a `switch` agent as soon as the client owns the pane, and labels it with
+/// the matched host's short name. Empty by default, so content signatures stay
+/// the only identity source until a deployment declares its inventory.
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+pub struct SwitchesConfig {
+    /// Exact hostnames or glob patterns (`*` matches any run, `?` one
+    /// character). Matching is case-insensitive and uses the destination's
+    /// host part (`user@`, a `ssh://` scheme, and any port or path are
+    /// stripped) plus its short name. Default: empty.
+    pub hosts: Vec<String>,
+}
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 pub struct ExperimentalConfig {
@@ -1679,6 +1695,22 @@ cjk_ime_cursor_shape = "bar"
         assert_eq!(
             config.experimental.cjk_ime_cursor_shape,
             ImeCursorShape::Bar
+        );
+    }
+
+    #[test]
+    fn switches_hosts_default_empty_and_parse() {
+        let default_config = Config::default();
+        assert!(default_config.switches.hosts.is_empty());
+
+        let toml = r#"
+[switches]
+hosts = ["core-sw1", "leaf*.dc1.example.com"]
+"#;
+        let config: Config = toml::from_str(toml).unwrap();
+        assert_eq!(
+            config.switches.hosts,
+            vec!["core-sw1".to_string(), "leaf*.dc1.example.com".to_string()]
         );
     }
 

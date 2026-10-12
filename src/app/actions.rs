@@ -1448,9 +1448,13 @@ impl AppState {
                 })
                 .into_iter()
                 .collect(),
-            AppEvent::SwitchVendorChanged { pane_id, vendor } => self
+            AppEvent::SwitchIdentityChanged {
+                pane_id,
+                vendor,
+                host,
+            } => self
                 .update_terminal_state(pane_id, |terminal| {
-                    if !terminal.set_detected_switch_vendor(vendor) {
+                    if !terminal.set_detected_switch_identity(vendor, host) {
                         return None;
                     }
                     // The label is presentation-only, so bump the pane revision
