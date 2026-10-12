@@ -61,6 +61,17 @@ Initial herdr-screen release: a GNU screen edition hard fork of Herdr 0.9.3
   title. The header is part of the row's click target, so clicking a group
   focuses its pane, and keyboard navigation, scrolling and reveal math account
   for the extra line. Other agent kinds keep their flat rows.
+- Switch identity signatures now live in the agent-detection manifest
+  (`src/detect/manifests/switch.toml`, mirrored to
+  `distribution/agent-detection/`), so a deployment can add or adjust what
+  identifies a switch session in
+  `~/.config/herdr/agent-detection/switch.toml` without a rebuild. Each
+  `[[identity]]` entry sets a `line_regex`, optionally a `vendor` (`sw-juniper`,
+  `sw-arista`, `sw-cisco`) and `tail_only` for prompt and login-banner forms
+  that must stay inside the screen tail. The section requires manifest engine 4;
+  a manifest without identity, or an older client, keeps the compiled-in
+  signatures as a fallback. Engine 4 also publishes the bundled Grok manifest,
+  which had been staged behind the engine-3 exception.
 
 ### Fixed
 - `ctrl+a a` (prefix followed by the bare prefix key) now sends a literal

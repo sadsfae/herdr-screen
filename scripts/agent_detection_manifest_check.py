@@ -16,7 +16,11 @@ DEFAULT_BUNDLED_DIR = PROJECT_ROOT / "src" / "detect" / "manifests"
 DEFAULT_PUBLISHED_DIR = PROJECT_ROOT / "distribution" / "agent-detection"
 ENGINE_SOURCE = PROJECT_ROOT / "src" / "detect" / "manifest_update.rs"
 
-MANIFEST_KEYS = {"id", "version", "min_engine_version", "updated_at", "aliases", "rules"}
+MANIFEST_KEYS = {"id", "version", "min_engine_version", "updated_at", "aliases", "rules", "identity"}
+IDENTITY_KEYS = {"vendor", "tail_only", "line_regex"}
+IDENTITY_VENDORS = {"juniper", "arista", "cisco"}
+SWITCH_IDENTITY_ENGINE_VERSION = 4
+MAX_IDENTITY_SIGNATURES = 64
 RULE_KEYS = {
     "id",
     "state",
@@ -53,16 +57,9 @@ MAX_MATCHERS_PER_GATE = 32
 MAX_TOTAL_MATCHERS = 1024
 MAX_MATCHER_CHARS = 512
 
-# Keep engine-2 clients on the OSC-capable manifest until an engine-3 release
-# can consume top_non_empty_lines. Remove this entry when the distribution
-# publishes the bundled Grok manifest.
-STAGED_PUBLISHED_MANIFESTS = {
-    "grok": (
-        "2026.09.18.2",
-        "2026.09.18.1",
-        "0f31b111144900b02f303577d27587f72d58d8c505185a682bd7887f822316ee",
-    ),
-}
+# The engine-3 staging window for the OSC-capable Grok manifest is over: the
+# distribution publishes the bundled manifest, so no staged entries remain.
+STAGED_PUBLISHED_MANIFESTS: dict[str, tuple[str, str, str]] = {}
 
 UNPUBLISHED_BUNDLED_MANIFESTS: dict[str, tuple[str, str]] = {}
 
@@ -164,7 +161,51 @@ def validate_manifest(path: Path, engine_version: int) -> dict:
                 f"{path}: rule {rule['id']} region {region!r} requires min_engine_version 3"
             )
 
+    identity = manifest.get("identity", [])
+    if not isinstance(identity, list):
+        raise CheckError(f"{path}: identity must be an array of tables")
+    if identity:
+        if min_engine < SWITCH_IDENTITY_ENGINE_VERSION:
+            raise CheckError(
+                f"{path}: identity signatures require min_engine_version "
+                f"{SWITCH_IDENTITY_ENGINE_VERSION}"
+            )
+        if len(identity) > MAX_IDENTITY_SIGNATURES:
+            raise CheckError(
+                f"{path}: manifest exceeds max identity count {MAX_IDENTITY_SIGNATURES}"
+            )
+        for index, entry in enumerate(identity):
+            validate_identity(path, index, entry)
+
     return manifest
+
+
+def validate_identity(path: Path, index: int, entry: object) -> None:
+    if not isinstance(entry, dict):
+        raise CheckError(f"{path}: identity {index} must be a table")
+    unknown = sorted(set(entry) - IDENTITY_KEYS)
+    if unknown:
+        raise CheckError(f"{path}: identity {index} has unknown field(s): {', '.join(unknown)}")
+    vendor = entry.get("vendor")
+    if vendor is not None and vendor not in IDENTITY_VENDORS:
+        raise CheckError(
+            f"{path}: identity {index} has unknown vendor {vendor!r}; expected one of "
+            f"{', '.join(sorted(IDENTITY_VENDORS))}"
+        )
+    tail_only = entry.get("tail_only")
+    if tail_only is not None and not isinstance(tail_only, bool):
+        raise CheckError(f"{path}: identity {index} tail_only must be a boolean")
+    pattern = entry.get("line_regex")
+    if not isinstance(pattern, str) or not pattern.strip():
+        raise CheckError(f"{path}: identity {index} must set a line_regex")
+    if len(pattern) > MAX_MATCHER_CHARS:
+        raise CheckError(
+            f"{path}: identity {index} line_regex exceeds {MAX_MATCHER_CHARS} characters"
+        )
+    try:
+        re.compile(pattern)
+    except re.error as err:
+        raise CheckError(f"{path}: identity {index} line_regex is invalid: {err}") from err
 
 
 def validate_rule(path: Path, index: int, rule: object, complexity: dict[str, int]) -> None:

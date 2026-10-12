@@ -775,6 +775,57 @@ fn top_non_empty_lines_requires_a_canonical_positive_bounded_count() {
 }
 
 #[test]
+fn manifest_identity_requires_engine_four_and_known_vendors() {
+    let valid = r#"
+id = "switch"
+version = "2026.10.13.1"
+min_engine_version = 4
+updated_at = "2026-10-13T00:00:00Z"
+
+[[identity]]
+line_regex = '^---\s*JUNOS\s+\S+'
+vendor = "juniper"
+tail_only = true
+
+[[rules]]
+id = "idle"
+state = "idle"
+contains = ["ready"]
+"#;
+    let manifest = parse_manifest(valid).expect("identity manifest parses");
+    assert_eq!(manifest.identity.len(), 1);
+    assert_eq!(manifest.identity[0].vendor.as_deref(), Some("juniper"));
+    assert!(manifest.identity[0].tail_only);
+
+    let low_engine = valid.replace("min_engine_version = 4", "min_engine_version = 3");
+    assert!(
+        parse_manifest(&low_engine).is_err(),
+        "identity below engine 4 must be rejected"
+    );
+
+    let unknown_vendor = valid.replace("vendor = \"juniper\"", "vendor = \"brocade\"");
+    assert!(
+        parse_manifest(&unknown_vendor).is_err(),
+        "an unknown identity vendor must be rejected"
+    );
+
+    let bad_regex = valid.replace(r"'^---\s*JUNOS\s+\S+'", r"'^---('");
+    assert!(
+        parse_manifest(&bad_regex).is_err(),
+        "an invalid identity regex must be rejected"
+    );
+
+    let unknown_field = valid.replace(
+        "vendor = \"juniper\"",
+        "vendor = \"juniper\"\nhostname = \"core-sw1\"",
+    );
+    assert!(
+        parse_manifest(&unknown_field).is_err(),
+        "unknown identity fields must be rejected"
+    );
+}
+
+#[test]
 fn top_non_empty_lines_requires_engine_three_when_declared() {
     let manifest = r#"
 id = "codex"

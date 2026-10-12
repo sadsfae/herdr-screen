@@ -94,22 +94,48 @@ class AgentDetectionManifestCheckTests(unittest.TestCase):
             with self.assertRaisesRegex(check.CheckError, "lower than bundled"):
                 check.validate_catalog(website, bundled_manifests, engine_version=1)
 
+    def staged_pair(self, root: Path) -> tuple[Path, Path, str]:
+        """Bundled 2026.09.18.2 with a deliberately regressed published copy,
+        as the staged-exception table used to excuse; returns its digest."""
+        bundled, website = staged_grok_dirs(root)
+        published = website / "grok.toml"
+        published.write_text(
+            'id = "grok"\n'
+            'version = "2026.09.18.1"\n'
+            'min_engine_version = 2\n'
+            'updated_at = "2026-09-18T00:00:00Z"\n'
+            'aliases = ["grok-build"]\n'
+            "\n"
+            '[[rules]]\n'
+            'id = "idle"\n'
+            'state = "idle"\n'
+            'contains = ["ready"]\n'
+        )
+        return bundled, website, hashlib.sha256(published.read_bytes()).hexdigest()
+
     def test_allows_explicitly_staged_published_manifest(self):
         with tempfile.TemporaryDirectory() as tmp:
-            bundled, website = staged_grok_dirs(Path(tmp))
-
+            bundled, website, digest = self.staged_pair(Path(tmp))
             bundled_manifests = check.load_manifest_dir(bundled, engine_version=3)
-            check.validate_catalog(website, bundled_manifests, engine_version=3)
+            with patch.dict(
+                check.STAGED_PUBLISHED_MANIFESTS,
+                {"grok": ("2026.09.18.2", "2026.09.18.1", digest)},
+            ):
+                check.validate_catalog(website, bundled_manifests, engine_version=3)
 
     def test_rejects_mutated_staged_published_manifest(self):
         with tempfile.TemporaryDirectory() as tmp:
-            bundled, website = staged_grok_dirs(Path(tmp))
+            bundled, website, digest = self.staged_pair(Path(tmp))
             with (website / "grok.toml").open("a") as manifest_file:
                 manifest_file.write("\n# unexpected mutation\n")
 
             bundled_manifests = check.load_manifest_dir(bundled, engine_version=3)
-            with self.assertRaisesRegex(check.CheckError, "lower than bundled"):
-                check.validate_catalog(website, bundled_manifests, engine_version=3)
+            with patch.dict(
+                check.STAGED_PUBLISHED_MANIFESTS,
+                {"grok": ("2026.09.18.2", "2026.09.18.1", digest)},
+            ):
+                with self.assertRaisesRegex(check.CheckError, "lower than bundled"):
+                    check.validate_catalog(website, bundled_manifests, engine_version=3)
 
     def test_rejects_unlisted_published_manifest_lag_for_new_engine(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -243,6 +269,78 @@ class AgentDetectionManifestCheckTests(unittest.TestCase):
                     check.validate_rule(
                         Path("test.toml"), 0, rule, {"gates": 0, "matchers": 0}
                     )
+
+    def identity_manifest(self, min_engine: int, identity: str) -> str:
+        return (
+            'id = "switch"\n'
+            'version = "2026.10.13.1"\n'
+            f"min_engine_version = {min_engine}\n"
+            'updated_at = "2026-10-13T00:00:00Z"\n'
+            "\n"
+            f"{identity}"
+            "\n"
+            "[[rules]]\n"
+            'id = "idle"\n'
+            'state = "idle"\n'
+            'contains = ["ready"]\n'
+        )
+
+    def test_accepts_identity_signatures_on_engine_four(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "switch.toml"
+            path.write_text(
+                self.identity_manifest(
+                    4,
+                    "[[identity]]\n"
+                    "line_regex = '^---\\\\s*JUNOS\\\\s+\\\\S+'\n"
+                    'vendor = "juniper"\n'
+                    "tail_only = true\n",
+                )
+            )
+            check.validate_manifest(path, engine_version=4)
+
+    def test_rejects_identity_below_engine_four(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "switch.toml"
+            path.write_text(
+                self.identity_manifest(
+                    3, "[[identity]]\nline_regex = '^---\\\\s*JUNOS'\n"
+                )
+            )
+            with self.assertRaisesRegex(check.CheckError, "min_engine_version 4"):
+                check.validate_manifest(path, engine_version=4)
+
+    def test_rejects_unknown_identity_vendor(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "switch.toml"
+            path.write_text(
+                self.identity_manifest(
+                    4,
+                    "[[identity]]\nline_regex = '^host#'\nvendor = \"brocade\"\n",
+                )
+            )
+            with self.assertRaisesRegex(check.CheckError, "unknown vendor"):
+                check.validate_manifest(path, engine_version=4)
+
+    def test_rejects_broken_identity_regex_and_unknown_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "switch.toml"
+            path.write_text(
+                self.identity_manifest(
+                    4, "[[identity]]\nline_regex = '^host('\n"
+                )
+            )
+            with self.assertRaisesRegex(check.CheckError, "line_regex is invalid"):
+                check.validate_manifest(path, engine_version=4)
+
+            path.write_text(
+                self.identity_manifest(
+                    4,
+                    "[[identity]]\nline_regex = '^host#'\nhostname = \"x\"\n",
+                )
+            )
+            with self.assertRaisesRegex(check.CheckError, "unknown field"):
+                check.validate_manifest(path, engine_version=4)
 
 
 if __name__ == "__main__":

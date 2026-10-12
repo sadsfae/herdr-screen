@@ -1,7 +1,69 @@
 id = "switch"
-version = "2026.10.12.1"
-min_engine_version = 1
-updated_at = "2026-10-12T13:32:16Z"
+version = "2026.10.13.1"
+min_engine_version = 4
+updated_at = "2026-10-13T00:00:00Z"
+
+# Identity signatures. A pane whose foreground ssh/telnet client shows one of
+# these lines is a switch session, evaluated before any state rule runs; this is
+# the identification half that used to live in the binary, so a deployment can
+# extend it with a local override at ~/.config/herdr/agent-detection/switch.toml.
+# - `vendor` labels the pane (`sw-arista`); unset for shared device prompt forms
+#   that only prove "some network OS CLI".
+# - `tail_only` matches prompt and login-banner forms inside the screen tail
+#   only, so a stale prompt further up in scrollback cannot identify a session;
+#   vendor output is matched across the whole visible screen because
+#   `show version`-class output scrolls past the tail in one frame.
+# - Every prompt pattern excludes the `:` path and `~` of a normal Linux/BSD
+#   shell prompt; bare `host>` / `host#` EXEC prompts stay state rules only.
+# Engine 4 is required: older clients reject this manifest and keep their
+# bundled one, whose binary still carries the same signatures as a fallback.
+
+[[identity]]
+line_regex = "^\\s*Arista\\s+(?:(?:DCS|CCS|vEOS)\\S*|Networks\\s+\\S+)\\s*$"
+vendor = "arista"
+
+[[identity]]
+line_regex = "^\\s*Software image version:\\s*\\S+\\s*$"
+
+[[identity]]
+line_regex = "^\\s*Arista Networks EOS shell\\s*$"
+vendor = "arista"
+
+[[identity]]
+line_regex = "^\\s*%?\\s*Invalid input \\(at token \\d+: '[^']*'\\)\\s*$"
+vendor = "arista"
+
+[[identity]]
+line_regex = "^\\s*%?\\s*Invalid input \\(privileged mode required\\)\\s*$"
+vendor = "arista"
+
+[[identity]]
+line_regex = "^\\s*Cisco IOS(?: XE)? Software"
+vendor = "cisco"
+
+[[identity]]
+line_regex = "^---\\s*JUNOS\\s+\\S+"
+vendor = "juniper"
+tail_only = true
+
+[[identity]]
+line_regex = "^\\[edit[^\\]]*\\]\\s*$"
+vendor = "juniper"
+tail_only = true
+
+[[identity]]
+line_regex = "^\\S+@[^:\\s>]+>\\s*$"
+vendor = "juniper"
+tail_only = true
+
+[[identity]]
+line_regex = "^\\S+@[^:\\s#]+#\\s*$"
+vendor = "juniper"
+tail_only = true
+
+[[identity]]
+line_regex = "^[A-Za-z0-9][A-Za-z0-9._-]*\\(config(?:-[^)]+)?\\)#\\s*$"
+tail_only = true
 
 # Network switch (or router) sessions reached over an interactive SSH / telnet
 # login. No hostname, vendor brand, or environment string is matched, so these

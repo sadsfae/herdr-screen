@@ -1048,8 +1048,9 @@ const SWITCH_SIGNATURE_TAIL_LINES: usize = 8;
 
 /// One identifying signature with the vendor it proves. `vendor` is `None` for
 /// shared device prompt forms that only prove "some network OS CLI".
-struct SwitchSignature {
-    vendor: Option<SwitchVendor>,
+#[derive(Debug)]
+pub(crate) struct SwitchIdentitySignature {
+    pub(crate) vendor: Option<SwitchVendor>,
     /// Prompt and login-banner forms are matched against the screen tail only,
     /// so a stale prompt further up in scrollback cannot keep a pane
     /// classified. Vendor output is matched against the whole visible screen,
@@ -1057,11 +1058,36 @@ struct SwitchSignature {
     /// The tradeoff of the wider region: a pane whose ssh/telnet client
     /// displays captured device output, or a previous session's output still on
     /// screen, is classified as a switch while that content is visible.
-    tail_only: bool,
-    regex: regex::Regex,
+    pub(crate) tail_only: bool,
+    pub(crate) regex: regex::Regex,
 }
 
-/// Compile-once switch signatures used only for identification.
+/// Vendor named in a manifest identity entry
+/// (`switch.toml`'s `[[identity]]` tables).
+pub(crate) fn parse_switch_vendor(value: &str) -> Option<SwitchVendor> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "juniper" => Some(SwitchVendor::Juniper),
+        "arista" => Some(SwitchVendor::Arista),
+        "cisco" => Some(SwitchVendor::Cisco),
+        _ => None,
+    }
+}
+
+/// Identifying signatures for switch sessions: the loaded switch manifest's
+/// `[[identity]]` entries when it has any, otherwise the compile-time fallback
+/// below, so a manifest without identity (or one that failed to load) cannot
+/// regress identification.
+pub(crate) fn switch_signatures() -> std::sync::Arc<[SwitchIdentitySignature]> {
+    let from_manifest = manifest::switch_identity_signatures();
+    if from_manifest.is_empty() {
+        fallback_switch_identity_signatures()
+    } else {
+        from_manifest
+    }
+}
+
+/// Compile-once fallback signatures, used only when the manifest carries no
+/// identity section.
 ///
 /// Every prompt pattern is line-anchored and excludes the `:` path and `~` that
 /// a normal Linux/BSD shell prompt carries, so a plain shell with a path
@@ -1087,74 +1113,76 @@ struct SwitchSignature {
 ///   `Invalid input (privileged mode required)`.
 ///
 /// Cisco IOS / IOS-XE `show version` output is the equivalent signal there.
-fn switch_signatures() -> &'static [SwitchSignature] {
-    static SIGNATURES: std::sync::LazyLock<Vec<SwitchSignature>> = std::sync::LazyLock::new(|| {
-        use SwitchVendor::{Arista, Cisco, Juniper};
-        let signatures: [(Option<SwitchVendor>, bool, &str); 11] = [
-            // Arista EOS `show version` model line ("Arista DCS-7280SRA-48C6-F",
-            // "Arista vEOS"), including the legacy vendor-word header form
-            // ("Arista Networks 7050TX-64").
-            (
-                Some(Arista),
-                false,
-                r"^\s*Arista\s+(?:(?:DCS|CCS|vEOS)\S*|Networks\s+\S+)\s*$",
-            ),
-            // Software version line from a device `show version`. Other network
-            // OS families print this label too, so it identifies a device CLI
-            // without claiming a vendor.
-            (None, false, r"^\s*Software image version:\s*\S+\s*$"),
-            // Arista EOS bash banner: "Arista Networks EOS shell".
-            (Some(Arista), false, r"^\s*Arista Networks EOS shell\s*$"),
-            // Arista EOS CLI errors ("% Invalid input (at token 1: 'show foo')",
-            // "% Invalid input (privileged mode required)").
-            (
-                Some(Arista),
-                false,
-                r"^\s*%?\s*Invalid input \(at token \d+: '[^']*'\)\s*$",
-            ),
-            (
-                Some(Arista),
-                false,
-                r"^\s*%?\s*Invalid input \(privileged mode required\)\s*$",
-            ),
-            // Cisco IOS / IOS-XE `show version` header.
-            (Some(Cisco), false, r"^\s*Cisco IOS(?: XE)? Software"),
-            // Juniper JunOS login banner (strong vendor signature).
-            (Some(Juniper), true, r"^---\s*JUNOS\s+\S+"),
-            // Juniper config breadcrumb banner (e.g. "[edit protocols ospf]").
-            (Some(Juniper), true, r"^\[edit[^\]]*\]\s*$"),
-            // Juniper operational prompt: user@host> (no `:` path, no `~`).
-            (Some(Juniper), true, r"^\S+@[^:\s>]+>\s*$"),
-            // Juniper config prompt: user@host#.
-            (Some(Juniper), true, r"^\S+@[^:\s#]+#\s*$"),
-            // Arista / Cisco / EOS config and sub-config prompt: host(config...)#
-            // (shared form: identifies a device CLI, not a vendor).
-            (
-                None,
-                true,
-                r"^[A-Za-z0-9][A-Za-z0-9._-]*\(config(?:-[^)]+)?\)#\s*$",
-            ),
-        ];
-        signatures
-            .into_iter()
-            .map(|(vendor, tail_only, pattern)| SwitchSignature {
-                vendor,
-                tail_only,
-                regex: regex::Regex::new(pattern).expect("valid switch signature"),
-            })
-            .collect()
-    });
-    &SIGNATURES
+fn fallback_switch_identity_signatures() -> std::sync::Arc<[SwitchIdentitySignature]> {
+    static SIGNATURES: std::sync::LazyLock<std::sync::Arc<[SwitchIdentitySignature]>> =
+        std::sync::LazyLock::new(|| {
+            use SwitchVendor::{Arista, Cisco, Juniper};
+            let signatures: [(Option<SwitchVendor>, bool, &str); 11] = [
+                // Arista EOS `show version` model line ("Arista DCS-7280SRA-48C6-F",
+                // "Arista vEOS"), including the legacy vendor-word header form
+                // ("Arista Networks 7050TX-64").
+                (
+                    Some(Arista),
+                    false,
+                    r"^\s*Arista\s+(?:(?:DCS|CCS|vEOS)\S*|Networks\s+\S+)\s*$",
+                ),
+                // Software version line from a device `show version`. Other network
+                // OS families print this label too, so it identifies a device CLI
+                // without claiming a vendor.
+                (None, false, r"^\s*Software image version:\s*\S+\s*$"),
+                // Arista EOS bash banner: "Arista Networks EOS shell".
+                (Some(Arista), false, r"^\s*Arista Networks EOS shell\s*$"),
+                // Arista EOS CLI errors ("% Invalid input (at token 1: 'show foo')",
+                // "% Invalid input (privileged mode required)").
+                (
+                    Some(Arista),
+                    false,
+                    r"^\s*%?\s*Invalid input \(at token \d+: '[^']*'\)\s*$",
+                ),
+                (
+                    Some(Arista),
+                    false,
+                    r"^\s*%?\s*Invalid input \(privileged mode required\)\s*$",
+                ),
+                // Cisco IOS / IOS-XE `show version` header.
+                (Some(Cisco), false, r"^\s*Cisco IOS(?: XE)? Software"),
+                // Juniper JunOS login banner (strong vendor signature).
+                (Some(Juniper), true, r"^---\s*JUNOS\s+\S+"),
+                // Juniper config breadcrumb banner (e.g. "[edit protocols ospf]").
+                (Some(Juniper), true, r"^\[edit[^\]]*\]\s*$"),
+                // Juniper operational prompt: user@host> (no `:` path, no `~`).
+                (Some(Juniper), true, r"^\S+@[^:\s>]+>\s*$"),
+                // Juniper config prompt: user@host#.
+                (Some(Juniper), true, r"^\S+@[^:\s#]+#\s*$"),
+                // Arista / Cisco / EOS config and sub-config prompt: host(config...)#
+                // (shared form: identifies a device CLI, not a vendor).
+                (
+                    None,
+                    true,
+                    r"^[A-Za-z0-9][A-Za-z0-9._-]*\(config(?:-[^)]+)?\)#\s*$",
+                ),
+            ];
+            signatures
+                .into_iter()
+                .map(|(vendor, tail_only, pattern)| SwitchIdentitySignature {
+                    vendor,
+                    tail_only,
+                    regex: regex::Regex::new(pattern).expect("valid switch identity signature"),
+                })
+                .collect::<Vec<_>>()
+                .into()
+        });
+    SIGNATURES.clone()
 }
 
 /// Whether a signature may match a line `depth_from_bottom` lines above the end
 /// of the screen: prompt and login-banner forms are tail-only, vendor output is
 /// matched across the whole visible screen.
-fn signature_in_region(signature: &SwitchSignature, depth_from_bottom: usize) -> bool {
+fn signature_in_region(signature: &SwitchIdentitySignature, depth_from_bottom: usize) -> bool {
     !signature.tail_only || depth_from_bottom < SWITCH_SIGNATURE_TAIL_LINES
 }
 
-fn switch_signature_matches(signature: &SwitchSignature, screen: &str) -> bool {
+fn switch_signature_matches(signature: &SwitchIdentitySignature, screen: &str) -> bool {
     screen.lines().rev().enumerate().any(|(depth, line)| {
         signature_in_region(signature, depth)
             && signature.regex.is_match(line.trim_end_matches('\r'))
@@ -1526,6 +1554,34 @@ mod tests {
                 "unexpected switch session for {screen:?}"
             );
         }
+    }
+
+    #[test]
+    fn bundled_manifest_identity_matches_the_compiled_fallback() {
+        let signatures = switch_signatures();
+        assert!(
+            !signatures.is_empty(),
+            "the bundled switch manifest must declare identity signatures"
+        );
+        let keys = |set: &[SwitchIdentitySignature]| {
+            let mut keys = set
+                .iter()
+                .map(|signature| {
+                    (
+                        signature.vendor.map(SwitchVendor::label),
+                        signature.tail_only,
+                        signature.regex.as_str().to_string(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            keys.sort();
+            keys
+        };
+        assert_eq!(
+            keys(&signatures),
+            keys(&fallback_switch_identity_signatures()),
+            "the manifest identity table and the compiled fallback must stay in sync"
+        );
     }
 
     #[test]
