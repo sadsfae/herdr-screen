@@ -54,6 +54,13 @@ Initial herdr-screen release: a GNU screen edition hard fork of Herdr 0.9.3
   its short name. Exiting the session clears the agent and the label, exactly
   as content-detected switches do; a user-set display label or agent name still
   wins over the derived title.
+- Switch connections are grouped in the agents panel: each one gets a header
+  line with its connection title (the configured host, the vendor label such as
+  `sw-arista`, or the name a seeded `agent start` got) and its own row
+  underneath, which shows the agent kind and state instead of repeating the
+  title. The header is part of the row's click target, so clicking a group
+  focuses its pane, and keyboard navigation, scrolling and reveal math account
+  for the extra line. Other agent kinds keep their flat rows.
 
 ### Fixed
 - `ctrl+a a` (prefix followed by the bare prefix key) now sends a literal

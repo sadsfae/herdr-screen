@@ -1464,3 +1464,97 @@ fn semantic_notifications_use_client_policy_and_stable_navigation_targets() {
     assert!(state.visible_notification.is_none());
     assert_eq!(state.pending_notifications.len(), 1);
 }
+
+#[test]
+fn switch_agents_render_a_connection_group_header() {
+    let fixture =
+        |pane_id: &str, display: Option<&str>, name: Option<&str>, kind: &str| ClientShellAgent {
+            pane_id: pane_id.into(),
+            workspace_id: "ws_1".into(),
+            tab_id: "tab_1".into(),
+            name: name.map(str::to_string),
+            display_agent: display.map(str::to_string),
+            agent: Some(kind.into()),
+            title: None,
+            terminal_title: None,
+            terminal_title_stripped: None,
+            agent_status: AgentStatus::Idle,
+            state_change_seq: 1,
+            state_labels: Vec::new(),
+            tokens: Vec::new(),
+            focused: pane_id == "pane_1",
+        };
+    let mut initial = snapshot();
+    initial.agents = vec![
+        fixture("pane_1", Some("core-sw1"), None, "switch"),
+        fixture("pane_2", None, Some("sw-test"), "switch"),
+        fixture("pane_3", Some("Claude: auth"), None, "claude"),
+    ];
+
+    let config = ClientShellConfig::from_config(&Config::default());
+    let rows = crate::client::shell::agent_sidebar::agent_rows(&initial, &config, None);
+
+    let switch_row = rows
+        .iter()
+        .find(|row| row.pane_id == "pane_1")
+        .expect("switch row");
+    assert_eq!(switch_row.group_header.as_deref(), Some("core-sw1"));
+    assert_eq!(switch_row.row_height(), switch_row.rows.len() + 1);
+    // The title lives on the header line, so the row carries the agent kind.
+    let labels = switch_row
+        .rows
+        .iter()
+        .flatten()
+        .filter_map(|token| match &token.kind {
+            crate::ui::ResolvedTokenKind::Agent(label) => Some(label.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(labels, vec!["switch"]);
+
+    // A seeded switch connection titles its group with the launch name.
+    let seeded = rows
+        .iter()
+        .position(|row| row.pane_id == "pane_2")
+        .expect("second switch row");
+    assert_eq!(rows[seeded].group_header.as_deref(), Some("sw-test"));
+
+    // Other agent kinds keep the flat row label.
+    let claude_row = rows
+        .iter()
+        .find(|row| row.pane_id == "pane_3")
+        .expect("claude row");
+    assert_eq!(claude_row.group_header, None);
+    assert_eq!(claude_row.row_height(), claude_row.rows.len());
+
+    let mut state = ClientShellState::new(config);
+    state.set_snapshot(Box::new(initial));
+    state.set_pane_surface(surface());
+    let frame = state.compose(106, 20).expect("composed frame");
+    // The header line is part of the row's click target and of its height.
+    let switch_hit = state
+        .hits
+        .agents
+        .iter()
+        .find(|(_, pane_id)| pane_id == "pane_1")
+        .expect("switch hit");
+    assert_eq!(switch_hit.0.height as usize, switch_row.row_height());
+    let buffer = frame.to_ratatui_buffer().expect("ratatui buffer");
+    let text = (0..buffer.area.height)
+        .map(|y| {
+            (0..buffer.area.width)
+                .map(|x| buffer[(x, y)].symbol().to_string())
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert_eq!(
+        text.matches("core-sw1").count(),
+        1,
+        "the connection title appears once, on its header line: {text}"
+    );
+    assert!(
+        text.contains("sw-test"),
+        "the second connection is grouped too: {text}"
+    );
+}
