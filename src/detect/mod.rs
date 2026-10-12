@@ -849,51 +849,181 @@ pub fn is_network_client_process_name(name: &str) -> bool {
     matches!(base.as_str(), "ssh" | "telnet" | "slogin")
 }
 
-/// Compile-once switch signatures used only for identification. Every pattern
-/// is line-anchored and excludes the `:` path and `~` that a normal Linux/BSD
-/// shell prompt carries, so a plain shell with a path component (e.g.
-/// `user@host:~$`, `root@host:~#`) never matches; a PS1 without a path
-/// (`user@host#`) is indistinguishable from a JunOS prompt and does match.
-/// A bare `host>` / `host#` EXEC prompt is deliberately NOT an identity
-/// signal: a Linux box whose PS1 is just the hostname presents exactly the
-/// same line, so such a session must not be classified as a switch.
-/// Arista/Cisco EXEC-only sessions are picked up once the session shows a
-/// stronger signature (config mode), or via `agent start --kind switch`,
-/// which seeds the pane's identity from the launched ssh process.
-fn switch_signature_regexes() -> &'static [regex::Regex] {
-    static REGEXES: std::sync::LazyLock<Vec<regex::Regex>> = std::sync::LazyLock::new(|| {
-        [
-            // Juniper JunOS login banner (strong vendor signature).
-            r"^---\s*JUNOS\s+\S+",
-            // Juniper config breadcrumb banner (e.g. "[edit protocols ospf]").
-            r"^\[edit[^\]]*\]\s*$",
-            // Juniper operational prompt: user@host> (no `:` path, no `~`).
-            r"^\S+@[^:\s>]+>\s*$",
-            // Juniper config prompt: user@host#.
-            r"^\S+@[^:\s#]+#\s*$",
-            // Arista / Cisco / EOS config and sub-config prompt: host(config...)#.
-            r"^[A-Za-z0-9][A-Za-z0-9._-]*\(config(?:-[^)]+)?\)#\s*$",
-            // EOS shell: host(bash)%.
-            r"^[A-Za-z0-9][A-Za-z0-9._-]*\(bash\)%\s*$",
-        ]
-        .iter()
-        .map(|pattern| regex::Regex::new(pattern).expect("valid switch signature"))
-        .collect()
-    });
-    &REGEXES
+/// Network OS family proven by an identifying signature. Used for the pane's
+/// display label (`sw-juniper`), never for the agent kind, which stays
+/// `switch`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SwitchVendor {
+    Juniper,
+    Arista,
+    Cisco,
 }
 
-/// True when the recent terminal tail shows a network-switch session. Used to
+impl SwitchVendor {
+    /// Sidebar label used when the vendor is known.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Juniper => "sw-juniper",
+            Self::Arista => "sw-arista",
+            Self::Cisco => "sw-cisco",
+        }
+    }
+}
+
+/// Prompt and login-banner signatures are matched against this many trailing
+/// lines: a prompt further up in scrollback must not identify the session, or
+/// claim its vendor.
+const SWITCH_SIGNATURE_TAIL_LINES: usize = 8;
+
+/// One identifying signature with the vendor it proves. `vendor` is `None` for
+/// shared device prompt forms that only prove "some network OS CLI".
+struct SwitchSignature {
+    vendor: Option<SwitchVendor>,
+    /// Prompt and login-banner forms are matched against the screen tail only,
+    /// so a stale prompt further up in scrollback cannot keep a pane
+    /// classified. Vendor output is matched against the whole visible screen,
+    /// because `show version`-class output scrolls past the tail in one frame.
+    /// The tradeoff of the wider region: a pane whose ssh/telnet client
+    /// displays captured device output, or a previous session's output still on
+    /// screen, is classified as a switch while that content is visible.
+    tail_only: bool,
+    regex: regex::Regex,
+}
+
+/// Compile-once switch signatures used only for identification.
+///
+/// Every prompt pattern is line-anchored and excludes the `:` path and `~` that
+/// a normal Linux/BSD shell prompt carries, so a plain shell with a path
+/// component (e.g. `user@host:~$`, `root@host:~#`) never matches; a PS1
+/// without a path (`user@host#`) is indistinguishable from a JunOS prompt and
+/// does match. A bare `host>` / `host#` EXEC prompt is deliberately NOT an
+/// identity signal: a Linux box whose PS1 is just the hostname presents
+/// exactly the same line, so such a session must not be classified as a switch.
+/// Arista/Cisco EXEC-only sessions are picked up once the session shows a
+/// stronger signature (vendor output or config mode), or via
+/// `agent start --kind switch`, which seeds the pane's identity from the
+/// launched ssh process.
+///
+/// Arista EOS ships no vendor text at login (`no banner login` and
+/// `no banner motd` in its default hardening config) and its login line is
+/// byte-identical to sshd's `Last login: ...`, so EOS sessions are identified
+/// from what the device prints once the operator runs anything:
+/// - `Arista DCS-...` / `Arista vEOS` model line and `Software image version:`
+///   from `show version`,
+/// - the `Arista Networks EOS shell` banner printed when entering `bash`
+///   (the EOS shell prompt itself is a plain `[admin@host ~]$`),
+/// - the EOS CLI error grammar `Invalid input (at token N: 'x')` and
+///   `Invalid input (privileged mode required)`.
+///
+/// Cisco IOS / IOS-XE `show version` output is the equivalent signal there.
+fn switch_signatures() -> &'static [SwitchSignature] {
+    static SIGNATURES: std::sync::LazyLock<Vec<SwitchSignature>> = std::sync::LazyLock::new(|| {
+        use SwitchVendor::{Arista, Cisco, Juniper};
+        let signatures: [(Option<SwitchVendor>, bool, &str); 11] = [
+            // Arista EOS `show version` model line ("Arista DCS-7280SRA-48C6-F",
+            // "Arista vEOS"), including the legacy vendor-word header form
+            // ("Arista Networks 7050TX-64").
+            (
+                Some(Arista),
+                false,
+                r"^\s*Arista\s+(?:(?:DCS|CCS|vEOS)\S*|Networks\s+\S+)\s*$",
+            ),
+            // Software version line from a device `show version`. Other network
+            // OS families print this label too, so it identifies a device CLI
+            // without claiming a vendor.
+            (None, false, r"^\s*Software image version:\s*\S+\s*$"),
+            // Arista EOS bash banner: "Arista Networks EOS shell".
+            (Some(Arista), false, r"^\s*Arista Networks EOS shell\s*$"),
+            // Arista EOS CLI errors ("% Invalid input (at token 1: 'show foo')",
+            // "% Invalid input (privileged mode required)").
+            (
+                Some(Arista),
+                false,
+                r"^\s*%?\s*Invalid input \(at token \d+: '[^']*'\)\s*$",
+            ),
+            (
+                Some(Arista),
+                false,
+                r"^\s*%?\s*Invalid input \(privileged mode required\)\s*$",
+            ),
+            // Cisco IOS / IOS-XE `show version` header.
+            (Some(Cisco), false, r"^\s*Cisco IOS(?: XE)? Software"),
+            // Juniper JunOS login banner (strong vendor signature).
+            (Some(Juniper), true, r"^---\s*JUNOS\s+\S+"),
+            // Juniper config breadcrumb banner (e.g. "[edit protocols ospf]").
+            (Some(Juniper), true, r"^\[edit[^\]]*\]\s*$"),
+            // Juniper operational prompt: user@host> (no `:` path, no `~`).
+            (Some(Juniper), true, r"^\S+@[^:\s>]+>\s*$"),
+            // Juniper config prompt: user@host#.
+            (Some(Juniper), true, r"^\S+@[^:\s#]+#\s*$"),
+            // Arista / Cisco / EOS config and sub-config prompt: host(config...)#
+            // (shared form: identifies a device CLI, not a vendor).
+            (
+                None,
+                true,
+                r"^[A-Za-z0-9][A-Za-z0-9._-]*\(config(?:-[^)]+)?\)#\s*$",
+            ),
+        ];
+        signatures
+            .into_iter()
+            .map(|(vendor, tail_only, pattern)| SwitchSignature {
+                vendor,
+                tail_only,
+                regex: regex::Regex::new(pattern).expect("valid switch signature"),
+            })
+            .collect()
+    });
+    &SIGNATURES
+}
+
+/// Whether a signature may match a line `depth_from_bottom` lines above the end
+/// of the screen: prompt and login-banner forms are tail-only, vendor output is
+/// matched across the whole visible screen.
+fn signature_in_region(signature: &SwitchSignature, depth_from_bottom: usize) -> bool {
+    !signature.tail_only || depth_from_bottom < SWITCH_SIGNATURE_TAIL_LINES
+}
+
+fn switch_signature_matches(signature: &SwitchSignature, screen: &str) -> bool {
+    screen.lines().rev().enumerate().any(|(depth, line)| {
+        signature_in_region(signature, depth)
+            && signature.regex.is_match(line.trim_end_matches('\r'))
+    })
+}
+
+/// True when the visible screen shows a network-switch session. Used to
 /// identify a pane (whose foreground process is an SSH/telnet client) as a
 /// `switch` agent; the switch screen manifest then classifies its state.
 pub fn recognize_switch_session(screen: &str) -> bool {
-    switch_signature_regexes().iter().any(|signature| {
-        screen
-            .lines()
-            .rev()
-            .take(8)
-            .any(|line| signature.is_match(line.trim_end_matches('\r')))
-    })
+    switch_signatures()
+        .iter()
+        .any(|signature| switch_signature_matches(signature, screen))
+}
+
+/// Vendor proven by the visible screen, when a vendor-specific signature
+/// matched. The bottom-most eligible match wins: the line closest to the prompt
+/// belongs to the session the operator is looking at, so stale or pasted device
+/// output further up the screen cannot override it. Prompt signatures honour the
+/// same tail boundary as switch identification, so an old prompt above the
+/// window cannot claim a vendor either. `None` means the session looks like a
+/// device CLI whose vendor is not identifiable (for example a bare
+/// `host(config)#` prompt).
+pub fn switch_session_vendor(screen: &str) -> Option<SwitchVendor> {
+    screen
+        .lines()
+        .rev()
+        .enumerate()
+        .filter_map(|(depth, line)| {
+            let line = line.trim_end_matches('\r');
+            switch_signatures()
+                .iter()
+                .find(|signature| {
+                    signature.vendor.is_some()
+                        && signature_in_region(signature, depth)
+                        && signature.regex.is_match(line)
+                })
+                .and_then(|signature| signature.vendor)
+        })
+        .next()
 }
 
 fn process_priority(process: &crate::platform::ForegroundProcess, normalized_name: &str) -> u8 {
@@ -1179,8 +1309,19 @@ mod tests {
             "[edit protocols ospf area 0.0.0.0]\nadmin@switch1#",
             // Arista / Cisco / EOS config prompt (strong identity signal).
             "core-switch(config-if-Et1)# ",
-            // EOS bash shell.
-            "device(bash)%  ",
+            // Arista EOS `show version` model and software lines.
+            "Arista DCS-7280SRA-48C6-F\nHardware version: 21.00\nSoftware image version: 4.26.4M",
+            "Arista vEOS\nSoftware image version: 4.22.1FX-VEOSRouter-cloud",
+            // Arista EOS bash entry banner (documented EOS shell).
+            "localhost#bash\n\nArista Networks EOS shell\n\n[admin@localhost ~]$",
+            // Arista EOS CLI error grammar (eAPI and CLI forms).
+            "% Invalid input (at token 1: 'show foo')",
+            "Invalid input (at token 2: 'trident')",
+            "% Invalid input (privileged mode required)",
+            // EOS vendor output above the prompt window: identity scans the
+            // whole screen for it, because show version output scrolls past
+            // the eight-line prompt tail in one frame.
+            "Arista DCS-7050TX-64-R\nSoftware image version: 4.28.3M\na\nb\nc\nd\ne\nf\ng\nh\ni\ncore-sw1#",
             // Prompts padded with extra trailing spaces.
             "admin@switch1>  ",
             "admin@switch1#  ",
@@ -1203,12 +1344,96 @@ mod tests {
             "user@host:~# ",
             "",
             "just some output line\nmore output",
+            // Arista EOS over SSH shows only this at login, exactly like sshd:
+            // it must stay unclassified until EOS-specific output appears.
+            "Last login: Sat Feb  2 14:45:16 2019 from 192.0.2.1\narista1# ",
+            // The EOS bash prompt is a plain Linux shell prompt.
+            "[admin@localhost ~]$ ",
         ] {
             assert!(
                 !recognize_switch_session(screen),
                 "unexpected switch session for {screen:?}"
             );
         }
+    }
+
+    #[test]
+    fn identifies_switch_vendor_from_signatures() {
+        assert_eq!(
+            switch_session_vendor("admin@switch1> "),
+            Some(SwitchVendor::Juniper)
+        );
+        assert_eq!(
+            switch_session_vendor("--- JUNOS 23.4R2-S6.9-EVO Linux (none)\nadmin@switch1> "),
+            Some(SwitchVendor::Juniper)
+        );
+        assert_eq!(
+            switch_session_vendor("Arista DCS-7280SRA-48C6-F"),
+            Some(SwitchVendor::Arista)
+        );
+        // Legacy EOS headers name the vendor instead of the DCS prefix.
+        assert!(recognize_switch_session("Arista Networks 7050TX-64"));
+        assert_eq!(
+            switch_session_vendor("Arista Networks 7050TX-64"),
+            Some(SwitchVendor::Arista)
+        );
+        assert_eq!(
+            switch_session_vendor("Arista Networks EOS shell"),
+            Some(SwitchVendor::Arista)
+        );
+        // The software version line is shared by several network OS families:
+        // it identifies a device CLI but not a vendor.
+        assert!(recognize_switch_session("Software image version: 4.26.4M"));
+        assert_eq!(
+            switch_session_vendor("Software image version: 4.26.4M"),
+            None
+        );
+        assert_eq!(
+            switch_session_vendor("% Invalid input (at token 1: 'show foo')"),
+            Some(SwitchVendor::Arista)
+        );
+        assert_eq!(
+            switch_session_vendor(
+                "Cisco IOS Software, C2960 Software (C2960-LANBASEK9-M), Version 15.0(2)SE11"
+            ),
+            Some(SwitchVendor::Cisco)
+        );
+        assert_eq!(
+            switch_session_vendor("Cisco IOS XE Software, Version 17.03.04"),
+            Some(SwitchVendor::Cisco)
+        );
+        // A shared device prompt identifies a switch but not a vendor, so the
+        // pane keeps the plain `switch` label.
+        assert!(recognize_switch_session("core-switch(config)# "));
+        assert_eq!(switch_session_vendor("core-switch(config)# "), None);
+        // The bottom-most vendor signal wins, so pasted or stale output above
+        // the current prompt cannot override the session's own device.
+        assert_eq!(
+            switch_session_vendor("Cisco IOS Software, C2960\nadmin@switch1> "),
+            Some(SwitchVendor::Juniper)
+        );
+        assert_eq!(
+            switch_session_vendor("admin@switch1> \nCisco IOS Software, C2960"),
+            Some(SwitchVendor::Cisco)
+        );
+        // A vendor prompt inside the identity window claims that vendor.
+        assert_eq!(
+            switch_session_vendor("admin@switch1> \ncore-sw(config)# "),
+            Some(SwitchVendor::Juniper)
+        );
+        // A stale prompt above the identity window does not: the tail boundary
+        // applies to vendor selection exactly as it does to identification.
+        let stale_prompt = format!("admin@switch1> \n{}core-sw(config)# ", "filler\n".repeat(8));
+        assert_eq!(switch_session_vendor(&stale_prompt), None);
+        // Linux prompts prove neither.
+        assert_eq!(switch_session_vendor("user@workstation:~$ "), None);
+    }
+
+    #[test]
+    fn switch_vendor_labels_are_display_labels() {
+        assert_eq!(SwitchVendor::Juniper.label(), "sw-juniper");
+        assert_eq!(SwitchVendor::Arista.label(), "sw-arista");
+        assert_eq!(SwitchVendor::Cisco.label(), "sw-cisco");
     }
 
     #[test]

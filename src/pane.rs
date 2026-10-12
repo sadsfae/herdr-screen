@@ -268,6 +268,32 @@ async fn publish_state_changed_event(
     }
 }
 
+/// Announce the vendor proven by a switch pane's signatures, once per change.
+/// The pane keeps the plain `switch` kind; the app turns the vendor into the
+/// display label (`sw-juniper`) unless the user labelled the pane or named the
+/// agent.
+async fn publish_switch_vendor_event(
+    state_events: &mpsc::Sender<AppEvent>,
+    pane_id: PaneId,
+    published: &mut Option<crate::detect::SwitchVendor>,
+    vendor: Option<crate::detect::SwitchVendor>,
+) {
+    if *published == vendor {
+        return;
+    }
+    *published = vendor;
+    if let Err(e) = state_events
+        .send(AppEvent::SwitchVendorChanged { pane_id, vendor })
+        .await
+    {
+        warn!(
+            pane = pane_id.raw(),
+            err = %e,
+            "failed to deliver SwitchVendorChanged event"
+        );
+    }
+}
+
 async fn publish_agent_process_detected_event(
     state_events: mpsc::Sender<AppEvent>,
     pane_id: PaneId,
@@ -706,14 +732,21 @@ fn job_has_network_client(job: &crate::platform::ForegroundJob) -> bool {
 /// signature is classified as `switch`. Once a network session is identified as
 /// a switch it stays classified for the life of the session, so a momentary
 /// output frame without a visible prompt does not drop the pane to unknown.
+/// The vendor proven by the signatures is latched the same way (`sw-juniper`),
+/// and stays `None` for shared device prompt forms.
 fn content_switch_agent(
     process_agent: Option<Agent>,
     content: &str,
     network_client_active: bool,
     content_switch_active: &mut bool,
+    content_switch_vendor: &mut Option<crate::detect::SwitchVendor>,
 ) -> Option<Agent> {
     if process_agent.is_some() {
+        // A seeded launch (`agent start --kind switch`) identifies through the
+        // process hint; it needs no content signature, and its required name
+        // wins over any vendor label, so the vendor stays unset here.
         *content_switch_active = false;
+        *content_switch_vendor = None;
         return process_agent;
     }
     if network_client_active {
@@ -721,11 +754,15 @@ fn content_switch_agent(
             *content_switch_active = true;
         }
         if *content_switch_active {
+            if content_switch_vendor.is_none() {
+                *content_switch_vendor = crate::detect::switch_session_vendor(content);
+            }
             return Some(Agent::Switch);
         }
         return None;
     }
     *content_switch_active = false;
+    *content_switch_vendor = None;
     None
 }
 
@@ -860,6 +897,8 @@ fn spawn_basic_detection_task(
         let mut foreground_shell_exit_reported = false;
         let mut network_client_active = false;
         let mut content_switch_active = false;
+        let mut content_switch_vendor = None;
+        let mut published_switch_vendor = None;
         let mut release_was_active = false;
         let mut last_detection_text = String::new();
         let mut last_screen_scan_detection_content_seq = None;
@@ -896,6 +935,8 @@ fn spawn_basic_detection_task(
                     foreground_shell_exit_reported = false;
                     network_client_active = false;
                     content_switch_active = false;
+                    content_switch_vendor = None;
+                    published_switch_vendor = None;
                     release_was_active = false;
                     last_detection_text.clear();
                     last_screen_scan_detection_content_seq = None;
@@ -1079,7 +1120,15 @@ fn spawn_basic_detection_task(
                 &content,
                 network_client_active,
                 &mut content_switch_active,
+                &mut content_switch_vendor,
             );
+            publish_switch_vendor_event(
+                &state_events,
+                pane_id,
+                &mut published_switch_vendor,
+                content_switch_vendor,
+            )
+            .await;
             let osc_title = terminal.agent_osc_title();
             let osc_progress = terminal.agent_osc_progress();
             let screen_detection = detection_update_for_publish_with_osc(
@@ -2784,6 +2833,8 @@ impl PaneRuntime {
                 let mut foreground_shell_exit_reported = false;
                 let mut network_client_active = false;
                 let mut content_switch_active = false;
+                let mut content_switch_vendor = None;
+                let mut published_switch_vendor = None;
                 let mut release_was_active = false;
                 let mut pending_restore_probe = initial_state.detected_agent.is_some();
                 let mut last_visible_blocker = false;
@@ -2830,6 +2881,8 @@ impl PaneRuntime {
                             foreground_shell_exit_reported = false;
                             network_client_active = false;
                             content_switch_active = false;
+                            content_switch_vendor = None;
+                            published_switch_vendor = None;
                             release_was_active = false;
                             pending_restore_probe = false;
                             last_visible_blocker = false;
@@ -3087,7 +3140,15 @@ impl PaneRuntime {
                         &content,
                         network_client_active,
                         &mut content_switch_active,
+                        &mut content_switch_vendor,
                     );
+                    publish_switch_vendor_event(
+                        &state_events,
+                        pane_id,
+                        &mut published_switch_vendor,
+                        content_switch_vendor,
+                    )
+                    .await;
                     let osc_title = terminal.agent_osc_title();
                     let osc_progress = terminal.agent_osc_progress();
                     let screen_detection = detection_update_for_publish_with_osc(
@@ -3935,41 +3996,85 @@ mod tests {
     fn content_switch_agent_latches_and_clears_with_the_network_client_gate() {
         // A process-identified agent always wins and clears the latch.
         let mut latch = false;
+        let mut vendor = None;
         assert_eq!(
-            content_switch_agent(Some(Agent::Pi), "admin@switch1> ", true, &mut latch),
+            content_switch_agent(
+                Some(Agent::Pi),
+                "admin@switch1> ",
+                true,
+                &mut latch,
+                &mut vendor
+            ),
             Some(Agent::Pi)
         );
         assert!(!latch);
+        assert_eq!(vendor, None);
 
         // A switch signature while a network client owns the foreground sets
-        // the latch, and a later frame without a prompt keeps it.
+        // the latch and its vendor, and a later frame without a prompt keeps
+        // both.
         let mut latch = false;
+        let mut vendor = None;
         assert_eq!(
-            content_switch_agent(None, "admin@switch1> ", true, &mut latch),
+            content_switch_agent(None, "admin@switch1> ", true, &mut latch, &mut vendor),
             Some(Agent::Switch)
         );
         assert!(latch);
+        assert_eq!(vendor, Some(crate::detect::SwitchVendor::Juniper));
         assert_eq!(
-            content_switch_agent(None, "show interfaces brief output", true, &mut latch),
+            content_switch_agent(
+                None,
+                "show interfaces brief output",
+                true,
+                &mut latch,
+                &mut vendor
+            ),
             Some(Agent::Switch)
         );
         assert!(latch);
+        assert_eq!(vendor, Some(crate::detect::SwitchVendor::Juniper));
+
+        // A shared device prompt identifies the pane without a vendor, and a
+        // vendor-specific line later fills the vendor in while latched.
+        let mut latch = false;
+        let mut vendor = None;
+        assert_eq!(
+            content_switch_agent(None, "core-switch(config)# ", true, &mut latch, &mut vendor),
+            Some(Agent::Switch)
+        );
+        assert_eq!(vendor, None);
+        assert_eq!(
+            content_switch_agent(
+                None,
+                "Arista DCS-7280SRA-48C6-F\nSoftware image version: 4.26.4M",
+                true,
+                &mut latch,
+                &mut vendor
+            ),
+            Some(Agent::Switch)
+        );
+        assert_eq!(vendor, Some(crate::detect::SwitchVendor::Arista));
 
         // No signature and no latch: unidentified.
         let mut latch = false;
+        let mut vendor = None;
         assert_eq!(
-            content_switch_agent(None, "user@workstation:~$ ", true, &mut latch),
+            content_switch_agent(None, "user@workstation:~$ ", true, &mut latch, &mut vendor),
             None
         );
         assert!(!latch);
+        assert_eq!(vendor, None);
 
-        // The network client leaving the foreground clears the latch.
+        // The network client leaving the foreground clears the latch and the
+        // vendor.
         let mut latch = true;
+        let mut vendor = Some(crate::detect::SwitchVendor::Arista);
         assert_eq!(
-            content_switch_agent(None, "user@workstation:~$ ", false, &mut latch),
+            content_switch_agent(None, "user@workstation:~$ ", false, &mut latch, &mut vendor),
             None
         );
         assert!(!latch);
+        assert_eq!(vendor, None);
     }
 
     #[tokio::test]
