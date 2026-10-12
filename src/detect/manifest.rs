@@ -125,6 +125,7 @@ struct LoadedManifest {
     manifest: AgentManifest,
     // Keep Regex search caches warm across manifest loads and pane polling.
     compiled_rules: Arc<[CompiledRule]>,
+    identity: Arc<[super::SwitchIdentitySignature]>,
     source: ManifestSource,
     warning: Option<String>,
     cached_remote_version: Option<String>,
@@ -148,6 +149,26 @@ pub(crate) struct AgentManifest {
     aliases: Vec<String>,
     #[serde(default)]
     rules: Vec<ManifestRule>,
+    /// Signatures that identify a session as this agent's kind before any rule
+    /// matches. Only the switch manifest uses them: they move vendor and
+    /// deployment identification out of the binary into the hot-reloadable
+    /// manifest. Requires `min_engine_version` 4 or newer.
+    #[serde(default)]
+    identity: Vec<ManifestIdentity>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+struct ManifestIdentity {
+    /// Vendor this signature proves (`juniper`, `arista`, `cisco`). Unset for
+    /// shared device prompt forms that only prove "some network OS CLI".
+    #[serde(default)]
+    vendor: Option<String>,
+    /// Match only inside the screen tail (prompt and login-banner forms), so a
+    /// stale prompt further up in scrollback cannot identify a session.
+    #[serde(default)]
+    tail_only: bool,
+    line_regex: String,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -268,6 +289,10 @@ static MANIFEST_CACHE: OnceLock<RwLock<ManifestCache>> = OnceLock::new();
 static MANIFEST_RELOAD_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 const MAX_RULES_PER_MANIFEST: usize = 128;
+/// Engine that first understands `[[identity]]` signatures; a manifest using
+/// them must declare it, so older clients keep their bundled manifest.
+const SWITCH_IDENTITY_ENGINE_VERSION: u32 = 4;
+const MAX_SWITCH_IDENTITY_SIGNATURES: usize = 64;
 const MAX_GATE_DEPTH: usize = 8;
 const MAX_TOTAL_GATES: usize = 512;
 const MAX_MATCHERS_PER_GATE: usize = 32;
@@ -699,14 +724,95 @@ fn loaded_manifest(
     local_override_shadowing_remote: bool,
 ) -> Result<LoadedManifest, String> {
     let compiled_rules = compile_manifest(&manifest)?.into();
+    let identity = compile_identity(&manifest)?;
     Ok(LoadedManifest {
         manifest,
         compiled_rules,
+        identity,
         source,
         warning,
         cached_remote_version,
         local_override_shadowing_remote,
     })
+}
+
+/// Compile and validate a manifest's `[[identity]]` table. Empty for every
+/// manifest except the switch one.
+fn compile_identity(
+    manifest: &AgentManifest,
+) -> Result<Arc<[super::SwitchIdentitySignature]>, String> {
+    validate_identity(manifest)?;
+    let mut compiled = Vec::with_capacity(manifest.identity.len());
+    for entry in &manifest.identity {
+        let vendor = match entry.vendor.as_deref() {
+            Some(vendor) => Some(super::parse_switch_vendor(vendor).ok_or_else(|| {
+                format!(
+                    "identity signature has unknown vendor {vendor:?}; expected juniper, arista or cisco"
+                )
+            })?),
+            None => None,
+        };
+        let regex = Regex::new(&entry.line_regex)
+            .map_err(|err| format!("identity signature regex {:?}: {err}", entry.line_regex))?;
+        compiled.push(super::SwitchIdentitySignature {
+            vendor,
+            tail_only: entry.tail_only,
+            regex,
+        });
+    }
+    Ok(compiled.into())
+}
+
+/// Semantic checks for the `[[identity]]` table, shared by manifest validation
+/// and compilation so the two cannot drift.
+fn validate_identity(manifest: &AgentManifest) -> Result<(), String> {
+    if manifest.identity.is_empty() {
+        return Ok(());
+    }
+    if manifest
+        .min_engine_version
+        .is_none_or(|version| version < SWITCH_IDENTITY_ENGINE_VERSION)
+    {
+        return Err(format!(
+            "manifest declares identity signatures but min_engine_version is below {}",
+            SWITCH_IDENTITY_ENGINE_VERSION
+        ));
+    }
+    if manifest.identity.len() > MAX_SWITCH_IDENTITY_SIGNATURES {
+        return Err(format!(
+            "manifest declares {} identity signatures, max is {MAX_SWITCH_IDENTITY_SIGNATURES}",
+            manifest.identity.len()
+        ));
+    }
+    for entry in &manifest.identity {
+        if let Some(vendor) = entry.vendor.as_deref() {
+            if super::parse_switch_vendor(vendor).is_none() {
+                return Err(format!(
+                    "identity signature has unknown vendor {vendor:?}; expected juniper, arista or cisco"
+                ));
+            }
+        }
+        if entry.line_regex.trim().is_empty() {
+            return Err("identity signature must set a line_regex".to_string());
+        }
+        Regex::new(&entry.line_regex)
+            .map_err(|err| format!("identity signature regex {:?}: {err}", entry.line_regex))?;
+    }
+    Ok(())
+}
+
+/// Identifying signatures from the loaded switch manifest, empty when it has
+/// none (the caller then falls back to the compile-time list).
+pub(crate) fn switch_identity_signatures() -> Arc<[super::SwitchIdentitySignature]> {
+    let lock = manifest_cache();
+    let cache = lock.read().unwrap_or_else(|poisoned| poisoned.into_inner());
+    cache
+        .manifests
+        .iter()
+        .find(|(agent, _)| *agent == Agent::Switch)
+        .and_then(|(_, loaded)| loaded.as_ref())
+        .map(|loaded| loaded.identity.clone())
+        .unwrap_or_else(|| Arc::from(Vec::new()))
 }
 
 fn bundled_loaded_manifest(
@@ -963,6 +1069,8 @@ fn validate_manifest(manifest: &AgentManifest) -> Result<(), String> {
         validate_rule_gate(rule, &mut complexity)
             .map_err(|err| format!("rule {} has invalid matcher gates: {err}", rule.id))?;
     }
+
+    validate_identity(manifest)?;
 
     Ok(())
 }
