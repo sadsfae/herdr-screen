@@ -15,6 +15,32 @@ pub(super) struct AgentRow {
     pub(super) status: crate::api::schema::AgentStatus,
     pub(super) focused: bool,
     pub(super) rows: Vec<Vec<crate::ui::ResolvedToken>>,
+    /// Connection title rendered as a group header line above the row. Set for
+    /// switch agents, so each switch connection reads as its own group.
+    pub(super) group_header: Option<String>,
+}
+
+impl AgentRow {
+    /// Height in terminal lines, including the group header when present. A row
+    /// with no resolved tokens still renders its status icon line.
+    pub(super) fn row_height(&self) -> usize {
+        self.rows.len().max(1) + usize::from(self.group_header.is_some())
+    }
+}
+
+/// Connection title of a switch agent: the configured host or vendor label
+/// (`core-sw1`, `sw-arista`), or the name a seeded launch got. Switch
+/// connections are rendered as their own group, so the title belongs on the
+/// header line while the row itself carries the agent kind.
+fn switch_connection_label(agent: &crate::protocol::ClientShellAgent) -> Option<String> {
+    let canonical = agent
+        .agent
+        .as_deref()
+        .and_then(crate::detect::parse_agent_label)?;
+    if canonical != crate::detect::Agent::Switch {
+        return None;
+    }
+    agent.display_agent.clone().or_else(|| agent.name.clone())
 }
 
 pub(super) fn ordered_agent_pane_ids(
@@ -79,7 +105,7 @@ pub(super) fn render_agent_panel(
         config,
         agent_scroll,
         hits,
-        |row| row.rows.len(),
+        |row| row.row_height(),
         |buffer, rect, row, hits| {
             hits.agents.push((rect, row.pane_id.clone()));
             render_agent_row(buffer, rect, row, config);
@@ -272,12 +298,23 @@ pub(super) fn agent_row(
     let tab_label = tab
         .filter(|tab| tab_count > 1 || tab.custom_label)
         .map(|tab| tab.label.as_str());
-    let agent_label = agent
-        .display_agent
-        .as_deref()
-        .or(agent.name.as_deref())
-        .or(agent.agent.as_deref())
-        .or(agent.title.as_deref());
+    let group_header = switch_connection_label(agent);
+    let agent_label = match group_header.as_deref() {
+        // The connection title moved to the group header, so the row shows the
+        // agent kind instead of repeating it (normalized, so an accepted alias
+        // such as `network-device` still renders as `switch`).
+        Some(_) => agent
+            .agent
+            .as_deref()
+            .and_then(crate::detect::parse_agent_label)
+            .map(crate::detect::agent_label),
+        None => agent
+            .display_agent
+            .as_deref()
+            .or(agent.name.as_deref())
+            .or(agent.agent.as_deref())
+            .or(agent.title.as_deref()),
+    };
     let labels = agent
         .state_labels
         .iter()
@@ -315,6 +352,7 @@ pub(super) fn agent_row(
         status: agent.agent_status,
         focused: agent.focused,
         rows,
+        group_header,
     })
 }
 
@@ -353,8 +391,30 @@ pub(super) fn render_agent_row(
     } else {
         row.rows.clone()
     };
-    for (index, tokens) in rows.iter().take(rect.height as usize).enumerate() {
-        let indent = if index == 0 { 1 } else { 3 };
+    let header_height = usize::from(row.group_header.is_some());
+    if let Some(header) = row.group_header.as_deref() {
+        let header_style = Style::default()
+            .fg(palette.subtext0)
+            .add_modifier(Modifier::BOLD)
+            .patch(row_style);
+        let header = crate::ui::truncate_end(&format!(" {header}"), rect.width as usize);
+        Paragraph::new(Line::from(vec![ratatui::text::Span::styled(
+            header,
+            header_style,
+        )]))
+        .style(row_style)
+        .render(Rect::new(rect.x, rect.y, rect.width, 1), buffer);
+    }
+    for (index, tokens) in rows
+        .iter()
+        .take(rect.height.saturating_sub(header_height as u16) as usize)
+        .enumerate()
+    {
+        let indent = if header_height == 0 && index == 0 {
+            1
+        } else {
+            3
+        };
         let mut spans = vec![ratatui::text::Span::raw(" ".repeat(indent))];
         spans.extend(crate::ui::resolved_token_spans(
             tokens,
@@ -367,7 +427,12 @@ pub(super) fn render_agent_row(
             rect.width.saturating_sub(indent as u16) as usize,
         ));
         Paragraph::new(Line::from(spans)).style(row_style).render(
-            Rect::new(rect.x, rect.y + index as u16, rect.width, 1),
+            Rect::new(
+                rect.x,
+                rect.y + (index + header_height) as u16,
+                rect.width,
+                1,
+            ),
             buffer,
         );
     }
