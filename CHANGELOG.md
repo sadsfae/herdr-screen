@@ -45,6 +45,15 @@ Initial herdr-screen release: a GNU screen edition hard fork of Herdr 0.9.3
   SSH session seeded as the expected agent on Linux and macOS, so it becomes
   ready as soon as the device shows an idle prompt, including a bare EXEC
   prompt.
+- Switches can be declared in configuration. `[switches] hosts = ["core-sw1",
+  "leaf*.dc1.example.com"]` identifies a pane as a `switch` agent as soon as an
+  ssh or telnet client owns it, with no on-screen signature needed, and labels
+  it with the matched host's short name (`core-sw1`). Matching is
+  case-insensitive, accepts exact names and `*`/`?` globs, and uses the
+  destination's host part (`user@`, `ssh://`, port and path are stripped) plus
+  its short name. Exiting the session clears the agent and the label, exactly
+  as content-detected switches do; a user-set display label or agent name still
+  wins over the derived title.
 
 ### Fixed
 - `ctrl+a a` (prefix followed by the bare prefix key) now sends a literal

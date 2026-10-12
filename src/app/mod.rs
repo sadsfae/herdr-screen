@@ -363,6 +363,7 @@ impl App {
     ) -> Self {
         let prefix_keys = config.prefix_keys();
         crate::kitty_graphics::set_enabled(config.kitty_graphics_enabled());
+        crate::detect::set_switch_host_patterns(&config.switches.hosts);
         let (event_tx, event_rx) = mpsc::channel::<AppEvent>(APP_EVENT_CHANNEL_CAPACITY);
         let render_notify = Arc::new(Notify::new());
         let render_dirty = Arc::new(crate::render_signal::RenderSignal::new());
@@ -924,6 +925,10 @@ impl App {
             {
                 self.next_agent_manifest_update_check = Some(now);
             }
+        }
+
+        if !invalid_section("switches") {
+            crate::detect::set_switch_host_patterns(&config.switches.hosts);
         }
 
         if !invalid_section("terminal") {
@@ -1724,6 +1729,35 @@ mod tests {
 
         std::env::remove_var(crate::config::CONFIG_PATH_ENV_VAR);
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn apply_live_config_publishes_switch_host_patterns() {
+        let mut app = test_app();
+        let mut config = Config::default();
+        let report = app.apply_live_config(&config, &[], &[], false);
+        assert_eq!(report.status, crate::config::ConfigReloadStatus::Applied);
+        assert_eq!(crate::detect::switch_host_title("core-sw1"), None);
+
+        config.switches.hosts = vec!["core-sw1".to_string()];
+        let report = app.apply_live_config(&config, &[], &[], false);
+        assert_eq!(report.status, crate::config::ConfigReloadStatus::Applied);
+        assert_eq!(
+            crate::detect::switch_host_title("admin@core-sw1:22").as_deref(),
+            Some("core-sw1")
+        );
+
+        // An invalid section keeps the patterns the previous config applied.
+        config.switches.hosts = vec!["leaf1".to_string()];
+        app.apply_live_config(&config, &[], &["switches".to_string()], false);
+        assert_eq!(
+            crate::detect::switch_host_title("core-sw1").as_deref(),
+            Some("core-sw1")
+        );
+        assert_eq!(crate::detect::switch_host_title("leaf1"), None);
+
+        // Leave the global at its default for the other tests in this binary.
+        crate::detect::set_switch_host_patterns(&[]);
     }
 
     #[test]

@@ -849,6 +849,177 @@ pub fn is_network_client_process_name(name: &str) -> bool {
     matches!(base.as_str(), "ssh" | "telnet" | "slogin")
 }
 
+/// Short ssh options that consume a value (`-o`, `-p`, `-l`, ...). Everything
+/// else in a cluster is a flag.
+const SSH_OPTIONS_WITH_VALUE: &[char] = &[
+    'b', 'B', 'c', 'D', 'E', 'e', 'F', 'I', 'i', 'J', 'L', 'l', 'm', 'O', 'o', 'P', 'p', 'Q', 'R',
+    'S', 'W', 'w',
+];
+
+/// Short telnet options that consume a value. telnet(1) shares the `host`
+/// argument shape but not the option letters, so the ssh table cannot be used
+/// for it: `-X atype`, `-k realm` and `-n tracefile` take values there, while
+/// `-c`, `-D`, `-E`, `-F`, `-K` and `-L` are flags.
+const TELNET_OPTIONS_WITH_VALUE: &[char] = &['b', 'e', 'k', 'l', 'n', 'S', 'V', 'X'];
+
+/// Destination host of an ssh or telnet command line: the first bare token
+/// after the options, with any `user@`, `ssh://` prefix and `:port` / `/path`
+/// suffix removed. `None` when the command line carries no destination (plain
+/// `ssh` reading from stdin, or `ssh -v`).
+pub fn network_client_destination(argv: &[String]) -> Option<String> {
+    let options_with_value = match argv.first() {
+        Some(program) if normalized_agent_lookup_name(path_basename(program)) == "telnet" => {
+            TELNET_OPTIONS_WITH_VALUE
+        }
+        _ => SSH_OPTIONS_WITH_VALUE,
+    };
+    let mut index = 1;
+    let mut after_terminator = false;
+    while let Some(token) = argv.get(index) {
+        let token = token.as_str();
+        if after_terminator || !token.starts_with('-') || token == "-" {
+            return Some(clean_network_client_destination(token));
+        }
+        if token == "--" {
+            after_terminator = true;
+            index += 1;
+            continue;
+        }
+        if token.starts_with("--") {
+            index += 1;
+            continue;
+        }
+        // A cluster of short options: the first option that consumes a value
+        // decides whether the next token is that value or the value is inline.
+        let mut takes_next_value = false;
+        for (offset, flag) in token[1..].char_indices() {
+            if options_with_value.contains(&flag) {
+                takes_next_value = token[2 + offset..].is_empty();
+                break;
+            }
+        }
+        index += if takes_next_value { 2 } else { 1 };
+    }
+    None
+}
+
+fn clean_network_client_destination(token: &str) -> String {
+    let without_scheme = token.strip_prefix("ssh://").unwrap_or(token);
+    let without_user = without_scheme
+        .rsplit_once('@')
+        .map_or(without_scheme, |(_, host)| host);
+    if let Some(rest) = without_user.strip_prefix('[') {
+        return rest.split(']').next().unwrap_or(rest).trim().to_string();
+    }
+    // More than one colon means an unbracketed IPv6 literal, not `host:port`:
+    // ssh requires brackets to add a port to an address.
+    let host = if without_user.matches(':').count() > 1 {
+        without_user
+    } else {
+        without_user
+            .split_once(':')
+            .map_or(without_user, |(host, _port)| host)
+    };
+    host.split('/').next().unwrap_or(host).trim().to_string()
+}
+
+/// One configured `[switches] hosts` entry: an exact hostname, or a compiled
+/// glob when the entry contains `*` or `?`.
+struct SwitchHostPattern {
+    literal: String,
+    glob: Option<regex::Regex>,
+}
+
+impl SwitchHostPattern {
+    fn compile(pattern: &str) -> Option<Self> {
+        let trimmed = pattern.trim().to_lowercase();
+        if trimmed.is_empty() {
+            return None;
+        }
+        if !trimmed.contains(['*', '?']) {
+            return Some(Self {
+                literal: trimmed,
+                glob: None,
+            });
+        }
+        let mut regex = String::from("^");
+        for character in trimmed.chars() {
+            match character {
+                '*' => regex.push_str(".*"),
+                '?' => regex.push('.'),
+                other => regex.push_str(&regex::escape(&other.to_string())),
+            }
+        }
+        regex.push('$');
+        Some(Self {
+            literal: trimmed,
+            glob: regex::Regex::new(&regex).ok(),
+        })
+    }
+
+    fn matches(&self, host: &str) -> bool {
+        match self.glob.as_ref() {
+            Some(glob) => glob.is_match(host),
+            None => self.literal == host,
+        }
+    }
+}
+
+/// Switch hostnames declared by the operator (`[switches] hosts`). Read by the
+/// pane detection loop; refreshed whenever the config is applied.
+static SWITCH_HOST_PATTERNS: std::sync::LazyLock<std::sync::RwLock<Vec<SwitchHostPattern>>> =
+    std::sync::LazyLock::new(|| std::sync::RwLock::new(Vec::new()));
+
+/// Replace the configured switch host list. Entries are trimmed and matched
+/// case-insensitively; empty entries are ignored.
+pub fn set_switch_host_patterns(patterns: &[String]) {
+    let compiled: Vec<SwitchHostPattern> = patterns
+        .iter()
+        .filter_map(|pattern| SwitchHostPattern::compile(pattern))
+        .collect();
+    let mut guard = SWITCH_HOST_PATTERNS
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    *guard = compiled;
+}
+
+/// Title for a pane whose ssh/telnet destination matches a configured switch
+/// host: the host's short name (`leaf1.dc1.example.com` -> `leaf1`), or the
+/// address itself for an IP literal. Entries are matched case-insensitively
+/// against the destination's host part (`user@`, a `ssh://` scheme, and any
+/// port or path are stripped) and its short name, so `core-sw1` in the config
+/// matches `ssh core-sw1.dc1.example.com` as well as `ssh core-sw1`.
+pub fn switch_host_title(destination: &str) -> Option<String> {
+    let patterns = SWITCH_HOST_PATTERNS
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if patterns.is_empty() {
+        return None;
+    }
+    switch_host_title_with(&patterns, destination)
+}
+
+fn switch_host_title_with(patterns: &[SwitchHostPattern], destination: &str) -> Option<String> {
+    let host = clean_network_client_destination(destination).to_lowercase();
+    if host.is_empty() {
+        return None;
+    }
+    let short = short_host_name(&host);
+    let matched = patterns
+        .iter()
+        .any(|pattern| pattern.matches(&host) || (short != host && pattern.matches(short)));
+    matched.then_some(short.to_string())
+}
+
+/// First label of a hostname (`leaf1.dc1.example.com` -> `leaf1`). IP literals
+/// are returned unchanged: `10.0.0.5` is not a name with a short form.
+fn short_host_name(host: &str) -> &str {
+    if host.parse::<std::net::IpAddr>().is_ok() {
+        return host;
+    }
+    host.split('.').next().unwrap_or(host)
+}
+
 /// Network OS family proven by an identifying signature. Used for the pane's
 /// display label (`sw-juniper`), never for the agent kind, which stays
 /// `switch`.
@@ -1434,6 +1605,186 @@ mod tests {
         assert_eq!(SwitchVendor::Juniper.label(), "sw-juniper");
         assert_eq!(SwitchVendor::Arista.label(), "sw-arista");
         assert_eq!(SwitchVendor::Cisco.label(), "sw-cisco");
+    }
+
+    #[test]
+    fn network_client_destination_reads_the_first_bare_token() {
+        let argv = |parts: &[&str]| {
+            parts
+                .iter()
+                .map(|part| part.to_string())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            network_client_destination(&argv(&["ssh", "core-sw1"])).as_deref(),
+            Some("core-sw1")
+        );
+        assert_eq!(
+            network_client_destination(&argv(&["ssh", "admin@core-sw1.dc1.example.com"]))
+                .as_deref(),
+            Some("core-sw1.dc1.example.com")
+        );
+        assert_eq!(
+            network_client_destination(&argv(&["ssh", "-p", "2222", "leaf1.example.com"]))
+                .as_deref(),
+            Some("leaf1.example.com")
+        );
+        assert_eq!(
+            network_client_destination(&argv(&["ssh", "-p2222", "leaf1"])).as_deref(),
+            Some("leaf1")
+        );
+        assert_eq!(
+            network_client_destination(&argv(&["ssh", "-vp", "2222", "leaf1"])).as_deref(),
+            Some("leaf1")
+        );
+        assert_eq!(
+            network_client_destination(&argv(&["ssh", "-vp2222", "leaf1"])).as_deref(),
+            Some("leaf1")
+        );
+        assert_eq!(
+            network_client_destination(&argv(&["ssh", "-l", "admin", "leaf1"])).as_deref(),
+            Some("leaf1")
+        );
+        assert_eq!(
+            network_client_destination(&argv(&["ssh", "-o", "StrictHostKeyChecking=no", "leaf1"]))
+                .as_deref(),
+            Some("leaf1")
+        );
+        assert_eq!(
+            network_client_destination(&argv(&["ssh", "-oStrictHostKeyChecking=no", "leaf1"]))
+                .as_deref(),
+            Some("leaf1")
+        );
+        assert_eq!(
+            network_client_destination(&argv(&["ssh", "-J", "bastion", "leaf1"])).as_deref(),
+            Some("leaf1")
+        );
+        assert_eq!(
+            network_client_destination(&argv(&["ssh", "-B", "eth0", "leaf1"])).as_deref(),
+            Some("leaf1")
+        );
+        assert_eq!(
+            network_client_destination(&argv(&["ssh", "-P", "deploy", "leaf1"])).as_deref(),
+            Some("leaf1")
+        );
+        assert_eq!(
+            network_client_destination(&argv(&["ssh", "-W", "leaf1:22", "bastion"])).as_deref(),
+            Some("bastion")
+        );
+        assert_eq!(
+            network_client_destination(&argv(&["ssh", "ssh://admin@leaf1:2222"])).as_deref(),
+            Some("leaf1")
+        );
+        assert_eq!(
+            network_client_destination(&argv(&["ssh", "[2001:db8::1]:22"])).as_deref(),
+            Some("2001:db8::1")
+        );
+        assert_eq!(
+            network_client_destination(&argv(&["ssh", "2001:db8::1"])).as_deref(),
+            Some("2001:db8::1")
+        );
+        assert_eq!(
+            network_client_destination(&argv(&["ssh", "--", "leaf1"])).as_deref(),
+            Some("leaf1")
+        );
+        assert_eq!(
+            network_client_destination(&argv(&["telnet", "leaf1", "23"])).as_deref(),
+            Some("leaf1")
+        );
+        // telnet has its own option table: `-E` is a flag there, `-X` and `-l`
+        // take values.
+        assert_eq!(
+            network_client_destination(&argv(&["telnet", "-E", "leaf1"])).as_deref(),
+            Some("leaf1")
+        );
+        assert_eq!(
+            network_client_destination(&argv(&["telnet", "-X", "KRB5", "leaf1"])).as_deref(),
+            Some("leaf1")
+        );
+        assert_eq!(
+            network_client_destination(&argv(&["telnet", "-l", "admin", "leaf1"])).as_deref(),
+            Some("leaf1")
+        );
+        assert_eq!(
+            network_client_destination(&argv(&["telnet", "-8", "leaf1"])).as_deref(),
+            Some("leaf1")
+        );
+        // No destination at all: the session is stdin or just flags.
+        assert_eq!(network_client_destination(&argv(&["ssh"])), None);
+        assert_eq!(network_client_destination(&argv(&["ssh", "-v"])), None);
+        assert_eq!(
+            network_client_destination(&argv(&["ssh", "-p", "22"])),
+            None
+        );
+    }
+
+    fn host_patterns(patterns: &[&str]) -> Vec<SwitchHostPattern> {
+        patterns
+            .iter()
+            .filter_map(|pattern| SwitchHostPattern::compile(pattern))
+            .collect()
+    }
+
+    #[test]
+    fn switch_host_patterns_match_hosts_and_short_names() {
+        let patterns = host_patterns(&["core-sw1", "leaf*.dc1.example.com"]);
+        assert_eq!(
+            switch_host_title_with(&patterns, "core-sw1").as_deref(),
+            Some("core-sw1")
+        );
+        assert_eq!(
+            switch_host_title_with(&patterns, "user@core-sw1").as_deref(),
+            Some("core-sw1")
+        );
+        assert_eq!(
+            switch_host_title_with(&patterns, "CORE-SW1.dc1.example.com").as_deref(),
+            Some("core-sw1")
+        );
+        assert_eq!(
+            switch_host_title_with(&patterns, "leaf1.dc1.example.com").as_deref(),
+            Some("leaf1")
+        );
+        assert_eq!(
+            switch_host_title_with(&patterns, "ssh://admin@leaf2.dc1.example.com:22").as_deref(),
+            Some("leaf2")
+        );
+        assert_eq!(
+            switch_host_title_with(&patterns, "leaf3.dc2.example.com"),
+            None
+        );
+        assert_eq!(switch_host_title_with(&patterns, "core-sw2"), None);
+        assert_eq!(switch_host_title_with(&patterns, ""), None);
+
+        // IP literals match as written and keep their full form as the title.
+        let addresses = host_patterns(&["10.0.0.5", "2001:db8::1"]);
+        assert_eq!(
+            switch_host_title_with(&addresses, "10.0.0.5").as_deref(),
+            Some("10.0.0.5")
+        );
+        assert_eq!(
+            switch_host_title_with(&addresses, "2001:db8::1").as_deref(),
+            Some("2001:db8::1")
+        );
+
+        // Blank and whitespace-only entries are ignored.
+        assert!(host_patterns(&["", "  "]).is_empty());
+    }
+
+    #[test]
+    fn switch_host_pattern_globs_are_anchored() {
+        let patterns = host_patterns(&["sw-?", "*.dc1.example.com"]);
+        assert_eq!(
+            switch_host_title_with(&patterns, "sw-1").as_deref(),
+            Some("sw-1")
+        );
+        assert_eq!(switch_host_title_with(&patterns, "sw-12"), None);
+        assert_eq!(
+            switch_host_title_with(&patterns, "core-sw1.dc1.example.com").as_deref(),
+            Some("core-sw1")
+        );
+        // The glob is anchored to the whole host, and the short-name angle does
+        // not turn a suffix pattern into a prefix match.
+        assert_eq!(switch_host_title_with(&patterns, "dc1.example.com"), None);
     }
 
     #[test]

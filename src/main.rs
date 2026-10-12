@@ -408,6 +408,16 @@ const DEFAULT_CONFIG: &str = r##"# herdr-screen configuration
 # force keepalive or multiplexing off, it only stops herdr-screen from adding its own.
 # manage_ssh_config = true
 
+[switches]
+# Hostnames or glob patterns that identify a pane as a switch as soon as an
+# ssh or telnet client owns it, and label it with the matched host's short
+# name (leaf1.dc1.example.com -> leaf1). Matching is case-insensitive, uses
+# the destination's host part (user@, a ssh:// scheme, and any port or path
+# are stripped) plus its short name, and keeps the full form for IP
+# literals. Empty by default: without entries, only the on-screen vendor
+# signatures identify a switch session.
+# hosts = ["core-sw1", "leaf*.dc1.example.com"]
+
 [experimental]
 # Allow launching herdr-screen from inside a herdr-managed pane.
 # allow_nested = false

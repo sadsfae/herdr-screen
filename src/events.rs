@@ -101,12 +101,14 @@ pub enum AppEvent {
         process_exited: bool,
         observed_at: Instant,
     },
-    /// A switch pane showed (or lost) a vendor-specific signature. Display
-    /// only: it labels the pane `sw-juniper` instead of `switch` when no user
+    /// A switch pane showed (or lost) a vendor-specific signature or a
+    /// configured host match. Display only: it labels the pane with the
+    /// configured host (`core-sw1`) or the vendor (`sw-juniper`) when no user
     /// label or agent name is set.
-    SwitchVendorChanged {
+    SwitchIdentityChanged {
         pane_id: PaneId,
         vendor: Option<crate::detect::SwitchVendor>,
+        host: Option<String>,
     },
     /// Hook-authoritative agent state was reported for a pane.
     HookStateReported {

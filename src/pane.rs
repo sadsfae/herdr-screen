@@ -268,28 +268,36 @@ async fn publish_state_changed_event(
     }
 }
 
-/// Announce the vendor proven by a switch pane's signatures, once per change.
-/// The pane keeps the plain `switch` kind; the app turns the vendor into the
-/// display label (`sw-juniper`) unless the user labelled the pane or named the
-/// agent.
-async fn publish_switch_vendor_event(
+/// Announce the switch identity proven by a pane's signatures or its configured
+/// host, once per change. The pane keeps the plain `switch` kind; the app turns
+/// the configured host into the display title (`core-sw1`) and falls back to the
+/// vendor label (`sw-juniper`). A user-set display label or agent name wins over
+/// both.
+async fn publish_switch_identity_event(
     state_events: &mpsc::Sender<AppEvent>,
     pane_id: PaneId,
-    published: &mut Option<crate::detect::SwitchVendor>,
+    published_vendor: &mut Option<crate::detect::SwitchVendor>,
+    published_host: &mut Option<String>,
     vendor: Option<crate::detect::SwitchVendor>,
+    host: Option<&str>,
 ) {
-    if *published == vendor {
+    if *published_vendor == vendor && published_host.as_deref() == host {
         return;
     }
-    *published = vendor;
+    *published_vendor = vendor;
+    *published_host = host.map(str::to_string);
     if let Err(e) = state_events
-        .send(AppEvent::SwitchVendorChanged { pane_id, vendor })
+        .send(AppEvent::SwitchIdentityChanged {
+            pane_id,
+            vendor,
+            host: host.map(str::to_string),
+        })
         .await
     {
         warn!(
             pane = pane_id.raw(),
             err = %e,
-            "failed to deliver SwitchVendorChanged event"
+            "failed to deliver SwitchIdentityChanged event"
         );
     }
 }
@@ -687,6 +695,9 @@ struct ProcessProbeResult {
     agent: Option<Agent>,
     process_name: Option<String>,
     network_client: bool,
+    /// Destination typed on the network client's command line, when the
+    /// foreground job carries it (`ssh user@core-sw1`, `ssh -p 22 leaf1`).
+    network_client_target: Option<String>,
 }
 
 fn agent_hint_for_foreground_job_members(
@@ -727,19 +738,45 @@ fn job_has_network_client(job: &crate::platform::ForegroundJob) -> bool {
         .any(|process| crate::detect::is_network_client_process_name(&process.name))
 }
 
+/// Destination typed on a network client's command line, when its argv is
+/// readable (Linux and macOS; WSL and the Windows fallback may not expose it).
+/// The process-group leader wins: with a proxy hop (`ProxyCommand` /
+/// `ssh -W`) the job holds both the pane's client and the proxy, and the
+/// destination the operator typed belongs to the pane's own client.
+fn job_network_client_target(job: &crate::platform::ForegroundJob) -> Option<String> {
+    let target = |process: &crate::platform::ForegroundProcess| {
+        process
+            .argv
+            .as_deref()
+            .and_then(crate::detect::network_client_destination)
+    };
+    let network_clients = || {
+        job.processes
+            .iter()
+            .filter(|process| crate::detect::is_network_client_process_name(&process.name))
+    };
+    network_clients()
+        .find(|process| process.pid == job.process_group_id)
+        .and_then(target)
+        .or_else(|| network_clients().find_map(target))
+}
+
 /// Resolve the agent to use for screen detection. A process-identified agent
-/// wins; otherwise an interactive network session whose tail matches a switch
-/// signature is classified as `switch`. Once a network session is identified as
-/// a switch it stays classified for the life of the session, so a momentary
-/// output frame without a visible prompt does not drop the pane to unknown.
-/// The vendor proven by the signatures is latched the same way (`sw-juniper`),
-/// and stays `None` for shared device prompt forms.
+/// wins; otherwise an interactive network session is classified as `switch`
+/// when its tail matches a switch signature, or when its destination matches a
+/// configured switch host (`[switches] hosts`). Once a network session is
+/// identified as a switch it stays classified for the life of the session, so a
+/// momentary output frame without a visible prompt does not drop the pane to
+/// unknown. The vendor proven by the signatures and the configured host title
+/// are latched the same way, and stay `None` for shared device prompt forms.
 fn content_switch_agent(
     process_agent: Option<Agent>,
     content: &str,
     network_client_active: bool,
+    host_title: Option<&str>,
     content_switch_active: &mut bool,
     content_switch_vendor: &mut Option<crate::detect::SwitchVendor>,
+    content_switch_host: &mut Option<String>,
 ) -> Option<Agent> {
     if process_agent.is_some() {
         // A seeded launch (`agent start --kind switch`) identifies through the
@@ -747,15 +784,19 @@ fn content_switch_agent(
         // wins over any vendor label, so the vendor stays unset here.
         *content_switch_active = false;
         *content_switch_vendor = None;
+        *content_switch_host = None;
         return process_agent;
     }
     if network_client_active {
-        if crate::detect::recognize_switch_session(content) {
+        if crate::detect::recognize_switch_session(content) || host_title.is_some() {
             *content_switch_active = true;
         }
         if *content_switch_active {
             if content_switch_vendor.is_none() {
                 *content_switch_vendor = crate::detect::switch_session_vendor(content);
+            }
+            if content_switch_host.is_none() {
+                *content_switch_host = host_title.map(str::to_string);
             }
             return Some(Agent::Switch);
         }
@@ -763,6 +804,7 @@ fn content_switch_agent(
     }
     *content_switch_active = false;
     *content_switch_vendor = None;
+    *content_switch_host = None;
     None
 }
 
@@ -778,6 +820,7 @@ fn process_probe_result(
         agent: Some(agent),
         process_name: Some(process_name),
         network_client: job_has_network_client(job),
+        network_client_target: job_network_client_target(job),
     }
 }
 
@@ -840,6 +883,7 @@ fn probe_foreground_process_from_jobs(
             agent: identified.as_ref().map(|(agent, _)| *agent),
             process_name: identified.map(|(_, process_name)| process_name),
             network_client: job_has_network_client(job),
+            network_client_target: job_network_client_target(job),
         };
     }
 
@@ -849,6 +893,7 @@ fn probe_foreground_process_from_jobs(
         agent: None,
         process_name: None,
         network_client: false,
+        network_client_target: None,
     }
 }
 
@@ -896,9 +941,12 @@ fn spawn_basic_detection_task(
         let mut pending_foreground_shell_clear = false;
         let mut foreground_shell_exit_reported = false;
         let mut network_client_active = false;
+        let mut network_client_target = None;
         let mut content_switch_active = false;
         let mut content_switch_vendor = None;
+        let mut content_switch_host = None;
         let mut published_switch_vendor = None;
+        let mut published_switch_host = None;
         let mut release_was_active = false;
         let mut last_detection_text = String::new();
         let mut last_screen_scan_detection_content_seq = None;
@@ -934,9 +982,12 @@ fn spawn_basic_detection_task(
                     pending_foreground_shell_clear = false;
                     foreground_shell_exit_reported = false;
                     network_client_active = false;
+                    network_client_target = None;
                     content_switch_active = false;
                     content_switch_vendor = None;
+                    content_switch_host = None;
                     published_switch_vendor = None;
+                    published_switch_host = None;
                     release_was_active = false;
                     last_detection_text.clear();
                     last_screen_scan_detection_content_seq = None;
@@ -997,6 +1048,7 @@ fn spawn_basic_detection_task(
                 has_process_probe = true;
                 let probe = probe_foreground_process(pid, foreground_pgid);
                 network_client_active = probe.network_client;
+                network_client_target = probe.network_client_target;
                 let process_group_id = probe.process_group_id;
                 let tracked_process_group_id =
                     process_group_for_change_tracking(foreground_pgid, process_group_id);
@@ -1115,18 +1167,30 @@ fn spawn_basic_detection_task(
             last_screen_scan_detection_content_seq = current_detection_content_seq;
             let content_changed = content != last_detection_text;
             last_detection_text.clone_from(&content);
+            let host_title = content_switch_host
+                .is_none()
+                .then(|| {
+                    network_client_target
+                        .as_deref()
+                        .and_then(crate::detect::switch_host_title)
+                })
+                .flatten();
             let detection_agent = content_switch_agent(
                 agent,
                 &content,
                 network_client_active,
+                host_title.as_deref(),
                 &mut content_switch_active,
                 &mut content_switch_vendor,
+                &mut content_switch_host,
             );
-            publish_switch_vendor_event(
+            publish_switch_identity_event(
                 &state_events,
                 pane_id,
                 &mut published_switch_vendor,
+                &mut published_switch_host,
                 content_switch_vendor,
+                content_switch_host.as_deref(),
             )
             .await;
             let osc_title = terminal.agent_osc_title();
@@ -2832,9 +2896,12 @@ impl PaneRuntime {
                 let mut pending_foreground_shell_clear = false;
                 let mut foreground_shell_exit_reported = false;
                 let mut network_client_active = false;
+                let mut network_client_target = None;
                 let mut content_switch_active = false;
                 let mut content_switch_vendor = None;
+                let mut content_switch_host = None;
                 let mut published_switch_vendor = None;
+                let mut published_switch_host = None;
                 let mut release_was_active = false;
                 let mut pending_restore_probe = initial_state.detected_agent.is_some();
                 let mut last_visible_blocker = false;
@@ -2880,9 +2947,12 @@ impl PaneRuntime {
                             pending_foreground_shell_clear = false;
                             foreground_shell_exit_reported = false;
                             network_client_active = false;
+                            network_client_target = None;
                             content_switch_active = false;
                             content_switch_vendor = None;
+                            content_switch_host = None;
                             published_switch_vendor = None;
+                            published_switch_host = None;
                             release_was_active = false;
                             pending_restore_probe = false;
                             last_visible_blocker = false;
@@ -2975,6 +3045,7 @@ impl PaneRuntime {
                         if pid > 0 {
                             let probe = probe_foreground_process(pid, foreground_pgid);
                             network_client_active = probe.network_client;
+                            network_client_target = probe.network_client_target;
                             let process_name = probe.process_name;
                             let process_group_id = probe.process_group_id;
                             let tracked_process_group_id = process_group_for_change_tracking(
@@ -3135,18 +3206,30 @@ impl PaneRuntime {
                     last_screen_scan_detection_content_seq = current_detection_content_seq;
                     let content_changed = content != last_detection_text;
                     last_detection_text.clone_from(&content);
+                    let host_title = content_switch_host
+                        .is_none()
+                        .then(|| {
+                            network_client_target
+                                .as_deref()
+                                .and_then(crate::detect::switch_host_title)
+                        })
+                        .flatten();
                     let detection_agent = content_switch_agent(
                         agent,
                         &content,
                         network_client_active,
+                        host_title.as_deref(),
                         &mut content_switch_active,
                         &mut content_switch_vendor,
+                        &mut content_switch_host,
                     );
-                    publish_switch_vendor_event(
+                    publish_switch_identity_event(
                         &state_events,
                         pane_id,
                         &mut published_switch_vendor,
+                        &mut published_switch_host,
                         content_switch_vendor,
+                        content_switch_host.as_deref(),
                     )
                     .await;
                     let osc_title = terminal.agent_osc_title();
@@ -3997,26 +4080,39 @@ mod tests {
         // A process-identified agent always wins and clears the latch.
         let mut latch = false;
         let mut vendor = None;
+        let mut host = None;
         assert_eq!(
             content_switch_agent(
                 Some(Agent::Pi),
                 "admin@switch1> ",
                 true,
+                None,
                 &mut latch,
-                &mut vendor
+                &mut vendor,
+                &mut host
             ),
             Some(Agent::Pi)
         );
         assert!(!latch);
         assert_eq!(vendor, None);
+        assert_eq!(host, None);
 
         // A switch signature while a network client owns the foreground sets
         // the latch and its vendor, and a later frame without a prompt keeps
         // both.
         let mut latch = false;
         let mut vendor = None;
+        let mut host = None;
         assert_eq!(
-            content_switch_agent(None, "admin@switch1> ", true, &mut latch, &mut vendor),
+            content_switch_agent(
+                None,
+                "admin@switch1> ",
+                true,
+                None,
+                &mut latch,
+                &mut vendor,
+                &mut host
+            ),
             Some(Agent::Switch)
         );
         assert!(latch);
@@ -4026,8 +4122,10 @@ mod tests {
                 None,
                 "show interfaces brief output",
                 true,
+                None,
                 &mut latch,
-                &mut vendor
+                &mut vendor,
+                &mut host
             ),
             Some(Agent::Switch)
         );
@@ -4038,8 +4136,17 @@ mod tests {
         // vendor-specific line later fills the vendor in while latched.
         let mut latch = false;
         let mut vendor = None;
+        let mut host = None;
         assert_eq!(
-            content_switch_agent(None, "core-switch(config)# ", true, &mut latch, &mut vendor),
+            content_switch_agent(
+                None,
+                "core-switch(config)# ",
+                true,
+                None,
+                &mut latch,
+                &mut vendor,
+                &mut host
+            ),
             Some(Agent::Switch)
         );
         assert_eq!(vendor, None);
@@ -4048,33 +4155,90 @@ mod tests {
                 None,
                 "Arista DCS-7280SRA-48C6-F\nSoftware image version: 4.26.4M",
                 true,
+                None,
                 &mut latch,
-                &mut vendor
+                &mut vendor,
+                &mut host
             ),
             Some(Agent::Switch)
         );
         assert_eq!(vendor, Some(crate::detect::SwitchVendor::Arista));
 
-        // No signature and no latch: unidentified.
+        // A configured switch host identifies the pane with no content
+        // signature at all, and titles it with the matched host.
         let mut latch = false;
         let mut vendor = None;
+        let mut host = None;
         assert_eq!(
-            content_switch_agent(None, "user@workstation:~$ ", true, &mut latch, &mut vendor),
+            content_switch_agent(
+                None,
+                "Last login: Thu Oct 12 13:58:01 2026 from 192.0.2.10\r\nadmin@buildhost:~$ ",
+                true,
+                Some("core-sw1"),
+                &mut latch,
+                &mut vendor,
+                &mut host
+            ),
+            Some(Agent::Switch)
+        );
+        assert!(latch);
+        assert_eq!(host.as_deref(), Some("core-sw1"));
+        // The title is latched with the identity: later frames keep the host
+        // the session started with.
+        assert_eq!(
+            content_switch_agent(
+                None,
+                "more output",
+                true,
+                Some("other-sw"),
+                &mut latch,
+                &mut vendor,
+                &mut host
+            ),
+            Some(Agent::Switch)
+        );
+        assert_eq!(host.as_deref(), Some("core-sw1"));
+
+        // No signature, no configured host, no latch: unidentified.
+        let mut latch = false;
+        let mut vendor = None;
+        let mut host = None;
+        assert_eq!(
+            content_switch_agent(
+                None,
+                "user@workstation:~$ ",
+                true,
+                None,
+                &mut latch,
+                &mut vendor,
+                &mut host
+            ),
             None
         );
         assert!(!latch);
         assert_eq!(vendor, None);
+        assert_eq!(host, None);
 
-        // The network client leaving the foreground clears the latch and the
-        // vendor.
+        // The network client leaving the foreground clears the latch, the
+        // vendor and the host title.
         let mut latch = true;
         let mut vendor = Some(crate::detect::SwitchVendor::Arista);
+        let mut host = Some("core-sw1".to_string());
         assert_eq!(
-            content_switch_agent(None, "user@workstation:~$ ", false, &mut latch, &mut vendor),
+            content_switch_agent(
+                None,
+                "user@workstation:~$ ",
+                false,
+                None,
+                &mut latch,
+                &mut vendor,
+                &mut host
+            ),
             None
         );
         assert!(!latch);
         assert_eq!(vendor, None);
+        assert_eq!(host, None);
     }
 
     #[tokio::test]

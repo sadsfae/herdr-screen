@@ -400,12 +400,12 @@ impl TerminalState {
     ) -> EffectivePresentation {
         let mut presentation = EffectivePresentation::empty();
         presentation.title = self.newest_metadata_title(now, enforce_ttl);
-        // Reported display metadata wins; a detected switch vendor is the
-        // fallback label (`sw-juniper`) for panes that would otherwise show the
-        // plain agent label.
+        // Reported display metadata wins; a detected switch host or vendor is
+        // the fallback label (`core-sw1`, `sw-juniper`) for panes that would
+        // otherwise show the plain agent label.
         presentation.display_agent = self
             .newest_metadata_display_agent(now, enforce_ttl)
-            .or_else(|| self.switch_vendor_label());
+            .or_else(|| self.switch_display_label());
         presentation.state_labels = self.effective_metadata_state_labels(now, enforce_ttl);
         presentation
     }
