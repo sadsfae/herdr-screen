@@ -63,6 +63,8 @@ for the infrastructure work that shares the same panes:
 | `quads` | the QUADS client management shell (cmd2) | run `quads-client`; the pane is identified from the `quads-client` process and its prompt, and its state is tracked in the sidebar |
 | Service logging | live `journalctl` / log-file watchers | `herdr-screen logs <service> ...` opens a workspace with one pane per service tailing its log; `logs-define <name> <command>` names a custom watcher |
 | `switch` | Juniper / Arista / Cisco switch SSH sessions | declare hosts in `[switches] hosts`, SSH into a switch, or `herdr-screen agent start --kind switch -- host`; the pane is identified from the device prompt / banner or the configured host and its state is tracked |
+| `mutt` | the Mutt mail client | run `mutt` as the pane's foreground process; the pane is identified from the `mutt` process (a copy behind `ssh` or `tmux` inside the pane is not detected) and its status line, prompt, or pager line is tracked in the sidebar |
+| `neomutt` | the NeoMutt mail client | run `neomutt` as the pane's foreground process; the pane is identified from the `neomutt` process (a copy behind `ssh` or `tmux` inside the pane is not detected) and its status line, prompt, or pager line is tracked in the sidebar |
 
 [Install](#install) · [RPM](#rpm) · [Deb](#deb) · [AUR](#aur) · [Slackware](#slackware) · [FreeBSD](#freebsd) · [macOS](#macos)
 

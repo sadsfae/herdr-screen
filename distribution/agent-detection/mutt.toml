@@ -1,0 +1,91 @@
+id = "mutt"
+version = "2026.10.12.2"
+min_engine_version = 1
+updated_at = "2026-10-12T19:16:22Z"
+
+# Mutt (https://gitlab.com/muttmua/mutt) is an interactive terminal mail
+# client, not an AI harness. The pane is identified from the running `mutt`
+# binary (src/detect/mod.rs), so these rules only classify the state of a pane
+# that already runs mutt:
+# - idle: the client status line owns the last visible line (index and compose
+#   menus) or the pager status line does (reading a message).
+# - blocked: an interactive prompt owns the last visible line (quadoption
+#   confirmations, value prompts, the any-key pause).
+# - working: a long operation renders its progress line (reading or writing a
+#   large mailbox, sorting, sending).
+# Layout and signal provenance (mutt 2.4.2 binary, default configuration,
+# verified in a real terminal at several sizes):
+# - the help line is the first screen row, the menu fills the middle, the
+#   status line is the second-to-last row, and the last row carries prompts,
+#   progress, and one-line info messages.
+# - default status_format: "-%r-Mutt: %f [Msgs:...]---(%s/%S)-%>-(%P)---",
+#   rendered as "---Mutt: ~/mail [Msgs:2 New:1 Old:1 4.8K]---(date/date)---(all)---".
+# - default pager_format: "-%Z- %C/%m: %-20.20n   %s%*  -- (%P)", rendered as
+#   "-N +- 2/2: Alice Example  Test message one  -- (0%)".
+# - quadoption prompts append "([yes]/no): ", e.g. "Purge 1 deleted message?
+#   ([yes]/no/?):".
+# - progress messages render as "<verb> <target>... <count>(/<total>) (<pct>%)",
+#   e.g. "Reading /var/tmp/big... 2080/6000 (34%)".
+# Every rule is anchored to the last non-empty line so stale prompts, progress
+# lines, or status lines further up in scrollback cannot keep a pane classified
+# after the user answers, quits the pager, or returns to the shell.
+
+[[rules]]
+id = "waiting_for_input"
+state = "blocked"
+priority = 950
+region = "bottom_non_empty_lines(1)"
+visible_blocker = true
+any = [
+  # Quadoption confirmation, e.g. "Purge 1 deleted message? ([yes]/no/?):" or
+  # "/home/user/Mail does not exist. Create it? ([yes]/no):".
+  { line_regex = ['\?\s*\(\[[a-z?]+\](?:/[a-z?]+)*\)\s*:?\s*$'] },
+  # Any-key pause shown under errors and one-shot messages.
+  { line_regex = ['^\s*Press any key to continue\.\.\.\s*$'] },
+  # Value prompts: mutt's prompt labels end with ": " and the typed value stays
+  # on the prompt line, so trailing text is allowed. A prompt that is not listed
+  # matches no rule and falls back to the engine's idle default instead of
+  # reporting a wrong state.
+  { line_regex = ['^\s*(?:Bcc|Bounce message to|Bounce tagged messages to|Cc|Charset|Content-Transfer-Encoding|Content-Type|Encrypt with|Fcc|From|Followup-To|Mail-Followup-To|Reply-To|Resent-To|Send attachment with name|Subject|To)\s*:.*$'] },
+  { line_regex = ['^\s*(?:Chdir to|Create mailbox|Delete messages matching|File under directory|Filter through|Jump to message|Limit to messages matching|New file|New file name|Open mailbox(?: \([^)]*\))?|Pipe to command|Query|Rename to|Reverse search for|Save to file|Save to mailbox(?: \([^)]*\))?|Search for|Shell command|Tag messages matching|Undelete messages matching|Untag messages matching)\s*:.*$'] },
+  { line_regex = ['^\s*(?:Address|Alias as|Comment|Description|Enter macro stroke|File Mask|Jump to|Label|Mailbox flags|Name|Personal name|Pipe to)\s*:.*$'] },
+]
+
+[[rules]]
+id = "operation_progress"
+state = "working"
+priority = 900
+region = "bottom_non_empty_lines(1)"
+visible_working = true
+any = [
+  # Progress messages. The tail ("<target>... <count>(/<total>) (<pct>%)") is
+  # dropped when the target path is clipped at the screen edge or the total is
+  # not known yet, so the verb alone decides; the region is the last line only,
+  # where the client draws its progress and one-line info messages.
+  { line_regex = ['^\s*(?:Reading|Writing|Copying|Moving|Fetching|Expunging|Saving|Sorting|Scanning|Marking|Evaluating|Committing)\b[^\n]*$'] },
+  # The remaining long operations render without a count or percentage tail.
+  { line_regex = ['^\s*Sending message\.\.\.\s*$'] },
+  { line_regex = ['^\s*Waiting for fcntl lock\.\.\.\s*\d+\s*$'] },
+]
+
+[[rules]]
+id = "mailbox_ready"
+state = "idle"
+priority = 500
+region = "bottom_non_empty_lines(1)"
+visible_idle = true
+# Client status line: "---Mutt: ~/mail [Msgs:...]---(date/date)---(all)---",
+# the modified-mailbox "-*-Mutt: ...", the read-only "-%-Mutt: ...", and the
+# compose menu "-- Mutt: Compose  [Approx. msg size: ...]---". Either client
+# name is accepted: mutt and NeoMutt share the status format, and a pane is only
+# classified by the manifest of the client it runs.
+line_regex = ['^[-*!%+]+\s?(?:Mutt|NeoMutt):\s.*$']
+
+[[rules]]
+id = "pager_ready"
+state = "idle"
+priority = 490
+region = "bottom_non_empty_lines(1)"
+visible_idle = true
+# Pager status line: "-N +- 2/2: Alice Example  Test message one  -- (0%)".
+line_regex = ['^\s*-[^:]*\d+/\d+:[^\n]*--\s+\((?:all|\d+%)\)\s*$']
