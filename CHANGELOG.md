@@ -26,8 +26,18 @@ Initial herdr-screen release: a GNU screen edition hard fork of Herdr 0.9.3
   EOS, Cisco IOS / IOS-XE) are now detected as a `switch` sidebar agent. A pane
   whose foreground process is an SSH or telnet client is classified from its
   on-screen prompt / banner (Juniper `user@host>` / `user@host#` and the
-  `--- JUNOS ...` / `[edit ...]` banners; Arista/Cisco `host(config...)#`;
-  EOS `host(bash)%`) rather than from any hostname or environment string.
+  `--- JUNOS ...` / `[edit ...]` banners; Arista/Cisco `host(config...)#`)
+  rather than from any hostname or environment string. Arista EOS prints no
+  vendor text at login (its `Last login:` line is indistinguishable from
+  sshd's), so an EOS session is identified from EOS-specific output: the
+  `Arista DCS-...` / `Arista vEOS` model line, the `Software image version:`
+  line shared by several network OS families, the `Arista Networks EOS shell`
+  banner printed when entering `bash`, and the `Invalid input (at token N:
+  'x')` CLI error. Vendor output is matched against the whole visible screen,
+  because `show version` output scrolls past the prompt tail in one frame; a
+  pane whose ssh client displays captured device output (or a previous
+  session's output) is therefore classified as a switch while that content is
+  visible. Prompt and login-banner signatures stay limited to the screen tail.
   The switch state is `idle` at the device prompt, `working` while output is
   paginated (`--More--`, `---- More ----`, JunOS `---(more)---` /
   `---(more NN%)---`), and `blocked` at an interactive confirmation or

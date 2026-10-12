@@ -1448,6 +1448,24 @@ impl AppState {
                 })
                 .into_iter()
                 .collect(),
+            AppEvent::SwitchVendorChanged { pane_id, vendor } => self
+                .update_terminal_state(pane_id, |terminal| {
+                    if !terminal.set_detected_switch_vendor(vendor) {
+                        return None;
+                    }
+                    // The label is presentation-only, so bump the pane revision
+                    // to push the new label to connected clients.
+                    terminal.revision = terminal.revision.saturating_add(1);
+                    Some(crate::terminal::TerminalStateMutation {
+                        effective_state_change: Some(
+                            terminal.unchanged_effective_state_change_at(std::time::Instant::now()),
+                        ),
+                        session_ref_changed: false,
+                        agent_released: false,
+                    })
+                })
+                .into_iter()
+                .collect(),
             AppEvent::HookStateReported {
                 pane_id,
                 source,

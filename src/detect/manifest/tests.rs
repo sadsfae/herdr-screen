@@ -798,7 +798,7 @@ fn switch_manifest_classifies_prompts_pager_and_confirms() {
         "core-switch# ",
         "core-switch(config-if-Et1)# ",
         "[edit protocols ospf area 0.0.0.0]\nadmin@switch1#",
-        "device(bash)% ",
+        "[admin@Switch ~]$ ",
     ] {
         assert_eq!(
             detect(Agent::Switch, screen).state,

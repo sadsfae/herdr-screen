@@ -1,7 +1,7 @@
 id = "switch"
-version = "2026.10.11.2"
+version = "2026.10.12.1"
 min_engine_version = 1
-updated_at = "2026-10-11T20:32:50Z"
+updated_at = "2026-10-12T13:32:16Z"
 
 # Network switch (or router) sessions reached over an interactive SSH / telnet
 # login. No hostname, vendor brand, or environment string is matched, so these
@@ -9,7 +9,12 @@ updated_at = "2026-10-11T20:32:50Z"
 # - Juniper JunOS / JunOS EVO: user@host> (operational), user@host# (config),
 #   with an `[edit ...]` breadcrumb line above the config prompt.
 # - Arista EOS / Cisco IOS(-XE): host> (user EXEC), host# (privileged EXEC),
-#   host(config...)# (config and sub-modes). EOS shell: host(bash)%.
+#   host(config...)# (config and sub-modes). EOS over SSH prints no vendor text
+#   at login (`no banner login` is the default), so an EOS session is
+#   identified from vendor output (`Arista DCS-...`, `Software image version:`,
+#   the `Arista Networks EOS shell` bash banner, or the `Invalid input (at
+#   token N: 'x')` CLI error) rather than from the prompt; the EOS bash prompt
+#   is a plain Linux `[admin@Switch ~]$`.
 # A normal Linux/BSD shell prompt with a path component (user@host:~$,
 # root@host:/var/log#) never matches because it carries a `:` path and `~`,
 # which these patterns exclude; a PS1 without a path (user@host>) is
@@ -64,6 +69,8 @@ any = [
   { line_regex = ['^[A-Za-z0-9][A-Za-z0-9._-]*(?:\(s[12]\))?#\s*$'] },
   # Arista / Cisco / EOS config and sub-config prompt: host(config...)#.
   { line_regex = ['^[A-Za-z0-9][A-Za-z0-9._-]*\(config(?:-[^)]+)?\)#\s*$'] },
-  # EOS shell: host(bash)%.
-  { line_regex = ['^[A-Za-z0-9][A-Za-z0-9._-]*\(bash\)%\s*$'] },
+  # Arista EOS bash prompt: [admin@Switch ~]$ (the documented EOS shell prompt;
+  # a state rule only, because the prompt itself is Linux-shaped. The bash entry
+  # banner "Arista Networks EOS shell" is the identity signal.)
+  { line_regex = ['^\[\S+@\S+ [^\]]*\]\$\s*$'] },
 ]
