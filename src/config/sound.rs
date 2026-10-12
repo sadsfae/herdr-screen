@@ -148,6 +148,8 @@ impl AgentSoundOverrides {
             Some(Agent::Muse) => self.muse,
             Some(Agent::Quads) => AgentSoundSetting::Default,
             Some(Agent::Switch) => AgentSoundSetting::Default,
+            Some(Agent::Mutt) => AgentSoundSetting::Default,
+            Some(Agent::Neomutt) => AgentSoundSetting::Default,
             None => AgentSoundSetting::Default,
         }
     }

@@ -67,10 +67,12 @@ pub enum Agent {
     Muse,
     Quads,
     Switch,
+    Mutt,
+    Neomutt,
 }
 
 impl Agent {
-    pub const ALL: [Self; 26] = [
+    pub const ALL: [Self; 28] = [
         Self::Pi,
         Self::Claude,
         Self::Codex,
@@ -97,8 +99,10 @@ impl Agent {
         Self::Muse,
         Self::Quads,
         Self::Switch,
+        Self::Mutt,
+        Self::Neomutt,
     ];
-    pub const SCREEN_MANIFEST_AGENTS: [Self; 24] = [
+    pub const SCREEN_MANIFEST_AGENTS: [Self; 26] = [
         Self::Pi,
         Self::Claude,
         Self::Codex,
@@ -123,6 +127,8 @@ impl Agent {
         Self::Muse,
         Self::Quads,
         Self::Switch,
+        Self::Mutt,
+        Self::Neomutt,
     ];
 }
 
@@ -154,6 +160,8 @@ pub fn agent_label(agent: Agent) -> &'static str {
         Agent::Muse => "muse",
         Agent::Quads => "quads",
         Agent::Switch => "switch",
+        Agent::Mutt => "mutt",
+        Agent::Neomutt => "neomutt",
     }
 }
 
@@ -191,6 +199,8 @@ pub fn interactive_agent_executable(agent: Agent) -> &'static str {
         Agent::Muse => "muse",
         Agent::Quads => "quads-client",
         Agent::Switch => "ssh",
+        Agent::Mutt => "mutt",
+        Agent::Neomutt => "neomutt",
     }
 }
 
@@ -233,6 +243,8 @@ fn lookup_agent(name: &str) -> Option<Agent> {
         "muse" | "muse-code" | "muse-cli" => Some(Agent::Muse),
         "quads" | "quads-client" | "quads client" => Some(Agent::Quads),
         "switch" | "network-device" => Some(Agent::Switch),
+        "mutt" => Some(Agent::Mutt),
+        "neomutt" => Some(Agent::Neomutt),
         _ if is_muse_versioned_binary(name) => Some(Agent::Muse),
         _ => None,
     }
@@ -1352,6 +1364,8 @@ mod tests {
             identify_agent(r"C:\Users\user\muse-bin-0.2.1-R1215.1.exe"),
             Some(Agent::Muse)
         );
+        assert_eq!(identify_agent("mutt"), Some(Agent::Mutt));
+        assert_eq!(identify_agent("neomutt"), Some(Agent::Neomutt));
     }
 
     #[test]
@@ -1384,6 +1398,8 @@ mod tests {
         assert_eq!(parse_agent_label("quads"), Some(Agent::Quads));
         assert_eq!(parse_agent_label("switch"), Some(Agent::Switch));
         assert_eq!(parse_agent_label("network-device"), Some(Agent::Switch));
+        assert_eq!(parse_agent_label("mutt"), Some(Agent::Mutt));
+        assert_eq!(parse_agent_label("neomutt"), Some(Agent::Neomutt));
     }
 
     #[test]
@@ -1431,6 +1447,8 @@ mod tests {
             (Agent::Muse, "muse"),
             (Agent::Quads, "quads-client"),
             (Agent::Switch, "ssh"),
+            (Agent::Mutt, "mutt"),
+            (Agent::Neomutt, "neomutt"),
         ];
         assert_eq!(expected.len(), Agent::ALL.len());
         for (agent, executable) in expected {
@@ -1965,6 +1983,58 @@ mod tests {
             assert_eq!(identify_agent_in_job(&job), None);
         }
         assert_eq!(identify_agent("MainThread"), None);
+    }
+
+    #[test]
+    fn identify_agent_in_job_detects_mail_clients() {
+        for (name, argv, agent, expected) in [
+            (
+                "mutt",
+                vec!["mutt", "-f", "/var/tmp/mail"],
+                Agent::Mutt,
+                "mutt",
+            ),
+            (
+                "neomutt",
+                vec!["neomutt", "-f", "/var/tmp/mail"],
+                Agent::Neomutt,
+                "neomutt",
+            ),
+            // Path-qualified argv0 when the process name does not identify it.
+            (
+                "MainThread",
+                vec!["/usr/bin/mutt", "-f", "/var/tmp/mail"],
+                Agent::Mutt,
+                "mutt",
+            ),
+        ] {
+            let job = crate::platform::ForegroundJob {
+                process_group_id: 123,
+                processes: vec![foreground_process(123, name, &argv)],
+            };
+
+            assert_eq!(
+                identify_agent_in_job(&job),
+                Some((agent, expected.to_string()))
+            );
+        }
+    }
+
+    #[test]
+    fn identify_agent_in_job_rejects_unrelated_mutt_mentions() {
+        for (name, argv) in [
+            ("MainThread", vec!["node", "-e", "mutt"]),
+            ("MainThread", vec!["/path/to/mutt-helper"]),
+            ("MainThread", vec!["/path/to/neomutt-helper"]),
+            ("mutt-config", vec!["/usr/bin/mutt-config", "--list"]),
+        ] {
+            let job = crate::platform::ForegroundJob {
+                process_group_id: 123,
+                processes: vec![foreground_process(123, name, &argv)],
+            };
+
+            assert_eq!(identify_agent_in_job(&job), None);
+        }
     }
 
     #[test]

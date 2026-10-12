@@ -72,6 +72,19 @@ Initial herdr-screen release: a GNU screen edition hard fork of Herdr 0.9.3
   a manifest without identity, or an older client, keeps the compiled-in
   signatures as a fallback. Engine 4 also publishes the bundled Grok manifest,
   which had been staged behind the engine-3 exception.
+- Mutt and NeoMutt mail clients are now detected as `mutt` and `neomutt`
+  sidebar agents from the running binary, so a mailbox pane appears in the
+  agents panel next to the coding agents. State comes from the last visible
+  line: `idle` at the client status line (index or compose menu) and at the
+  pager status line, `blocked` at an interactive prompt (quadoption
+  confirmations like `Purge 1 deleted message? ([yes]/no/?):`, envelope value
+  prompts, and the any-key pause), and `working` while a long operation
+  renders its progress line (`Reading ~/big... 2080/6000 (34%)`,
+  `Writing ~/bigmbox... 1558/4000 (38%)`, `Sorting mailbox...`,
+  `Sending message...`). `herdr-screen agent start --kind mutt` / `--kind neomutt`
+  launches the client in an available shell pane. Prompts report `blocked`, so
+  a pending confirmation raises the usual needs-attention notification and
+  sound; panes report `idle` while reading mail, so the pager does not.
 
 ### Fixed
 - `ctrl+a a` (prefix followed by the bare prefix key) now sends a literal
