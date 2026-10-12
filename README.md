@@ -92,13 +92,13 @@ when a release is cut.
 Fedora:
 
 ```bash
-sudo dnf install https://github.com/sadsfae/herdr-screen/releases/latest/download/herdr-screen-0.8.0-1.fc43.x86_64.rpm
+sudo dnf install https://github.com/sadsfae/herdr-screen/releases/latest/download/herdr-screen-0.9.0-1.fc43.x86_64.rpm
 ```
 
 RHEL / Rocky / AlmaLinux 8, 9, or 10 (use the matching `el8`, `el9`, or `el10` asset):
 
 ```bash
-sudo dnf install https://github.com/sadsfae/herdr-screen/releases/latest/download/herdr-screen-0.8.0-1.el9.x86_64.rpm
+sudo dnf install https://github.com/sadsfae/herdr-screen/releases/latest/download/herdr-screen-0.9.0-1.el9.x86_64.rpm
 ```
 
 ### Deb
@@ -108,8 +108,8 @@ sudo dnf install https://github.com/sadsfae/herdr-screen/releases/latest/downloa
 Debian / Ubuntu:
 
 ```bash
-wget https://github.com/sadsfae/herdr-screen/releases/latest/download/herdr-screen_0.8.0_amd64.deb
-sudo apt install ./herdr-screen_0.8.0_amd64.deb
+wget https://github.com/sadsfae/herdr-screen/releases/latest/download/herdr-screen_0.9.0_amd64.deb
+sudo apt install ./herdr-screen_0.9.0_amd64.deb
 ```
 
 ### AUR
@@ -129,8 +129,8 @@ makepkg -si
 <img src="assets/slackware.svg" alt="Slackware" width="28" />
 
 ```bash
-wget https://github.com/sadsfae/herdr-screen/releases/latest/download/herdr-screen-0.8.0-x86_64-1.txz
-installpkg herdr-screen-0.8.0-x86_64-1.txz
+wget https://github.com/sadsfae/herdr-screen/releases/latest/download/herdr-screen-0.9.0-x86_64-1.txz
+installpkg herdr-screen-0.9.0-x86_64-1.txz
 ```
 
 ### FreeBSD
@@ -138,7 +138,7 @@ installpkg herdr-screen-0.8.0-x86_64-1.txz
 <img src="assets/freebsd.svg" alt="FreeBSD" width="28" />
 
 ```bash
-pkg add https://github.com/sadsfae/herdr-screen/releases/latest/download/herdr-screen-0.8.0.pkg
+pkg add https://github.com/sadsfae/herdr-screen/releases/latest/download/herdr-screen-0.9.0.pkg
 ```
 
 ### macOS
