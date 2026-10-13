@@ -62,13 +62,13 @@ for the infrastructure work that shares the same panes:
 |-------|-----------------|---------------|
 | `quads` | the QUADS client management shell (cmd2) | run `quads-client`; the pane is identified from the `quads-client` process and its prompt, and its state is tracked in the sidebar |
 | Service logging | live `journalctl` / log-file watchers | `herdr-screen logs <service> ...` opens a workspace with one pane per service tailing its log; `logs-define <name> <command>` names a custom watcher |
-| `switch` | Juniper / Arista / Cisco switch SSH sessions | SSH into a switch (or `herdr-screen agent start --kind switch -- host`); the pane is identified from the device prompt / banner and its state is tracked |
+| `switch` | Juniper / Arista / Cisco switch SSH sessions | declare hosts in `[switches] hosts`, SSH into a switch, or `herdr-screen agent start --kind switch -- host`; the pane is identified from the device prompt / banner or the configured host and its state is tracked |
 
 [Install](#install) · [RPM](#rpm) · [Deb](#deb) · [AUR](#aur) · [Slackware](#slackware) · [FreeBSD](#freebsd) · [macOS](#macos)
 
 [About](#about)
 
-[Quick Start Usage](#quick-start-usage)
+[Quick Start Usage](#quick-start-usage) · [Define and list your switch hosts](#define-and-list-your-switch-hosts)
 
 [Docs](#docs)
 
@@ -219,6 +219,29 @@ Open a dedicated logs workspace with one pane per watcher:
 herdr-screen logs nginx postgres                  # tails each in its own pane
 herdr-screen logs --file /var/log/app.log         # tail a file path directly
 ```
+
+### Define and list your switch hosts
+
+Switch SSH sessions are identified from the device prompt or banner, but you
+can declare your inventory so a pane becomes a `switch` agent as soon as an
+ssh or telnet client owns it, with no on-screen signature required. Add the
+hosts to `~/.config/herdr/config.toml`:
+
+```toml
+[switches]
+hosts = [
+  "core-sw1",
+  "leaf*.dc1.example.com",
+]
+```
+
+Entries are exact hostnames or `*`/`?` globs, matched case-insensitively
+against the destination host (with `user@`, an `ssh://` scheme, and any port
+stripped) and against its short name. A matched pane is labeled with the
+host's short name (`leaf1.dc1.example.com` -> `leaf1`); IP literals keep their
+full form. Vendors are not listed here: the `sw-juniper` / `sw-arista` /
+`sw-cisco` label still comes from the device's prompt or banner when no host
+matches.
 
 ### Split panes vertical or horizontal, and revert
 
