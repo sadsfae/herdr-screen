@@ -110,6 +110,13 @@ Initial herdr-screen release: a GNU screen edition hard fork of Herdr 0.9.3
   and RPM/deb/Slackware/FreeBSD packages, the macOS universal binary, and the
   AUR PKGBUILD) now passes the published version into the build, and the Linux
   and macOS package builds fail if the built binary reports anything else.
+- Wayland clipboard copies are only treated as written after the clipboard is
+  read back, so a compositor that never gives the `wl-copy` popup surface
+  keyboard focus (Mutter/GNOME has no data-control protocol) no longer reports
+  a silent success on the "copied to clipboard" toast. An unconfirmed `wl-copy`
+  falls through to `xclip`/`xsel` when they are installed and to OSC 52 last,
+  and a `wl-copy` that never took the selection is reclaimed instead of being
+  left running. X11 sessions keep the previous `xclip`/`xsel` behaviour. (#55)
 
 ## [0.2.0] - 2026-10-01
 
