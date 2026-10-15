@@ -978,13 +978,17 @@ fn read_clipboard_image_with_spawned_command_max(
     }
 }
 
+/// MIME type herdr copies text as. The read-back probe has to ask for the same
+/// type, or it reads nothing back and every Wayland copy takes the fallback.
+const WL_CLIPBOARD_TEXT_TYPE: &str = "text/plain;charset=utf-8";
+
 fn clipboard_commands() -> Vec<ClipboardCommand> {
     let mut commands = Vec::new();
 
     if std::env::var_os("WAYLAND_DISPLAY").is_some() {
         commands.push(ClipboardCommand {
             program: "wl-copy",
-            args: &["--type", "text/plain;charset=utf-8"],
+            args: &["--type", WL_CLIPBOARD_TEXT_TYPE],
         });
     }
 
@@ -1008,7 +1012,7 @@ fn read_clipboard_text_commands() -> Vec<ClipboardCommand> {
     if std::env::var_os("WAYLAND_DISPLAY").is_some() {
         commands.push(ClipboardCommand {
             program: "wl-paste",
-            args: &["--type", "text/plain;charset=utf-8"],
+            args: &["--type", WL_CLIPBOARD_TEXT_TYPE],
         });
         commands.push(ClipboardCommand {
             program: "wl-paste",
@@ -1094,24 +1098,132 @@ fn run_clipboard_command(command: &ClipboardCommand, bytes: &[u8]) -> bool {
     drop(stdin);
 
     if command.program == "wl-copy" {
-        return wait_for_wl_copy_startup(child);
+        return wait_for_wl_copy_startup(child, bytes);
     }
 
     child.wait().map(|status| status.success()).unwrap_or(false)
 }
 
-fn wait_for_wl_copy_startup(mut child: std::process::Child) -> bool {
+/// Reports whether the Wayland clipboard currently holds exactly `bytes`.
+///
+/// wl-copy cannot be trusted on its exit status alone: it exits 0 both after
+/// taking the selection and after the compositor cancelled the source, and on a
+/// compositor without a data-control protocol (Mutter) it stays alive without
+/// ever taking the selection, because its popup surface never gains keyboard
+/// focus. Reading the clipboard back is the only proof that the write landed.
+///
+/// `None` means the probe itself could not run, which leaves the caller to fall
+/// back to the exit status.
+///
+/// ponytail: one bounded probe; move the check inside the startup wait if the
+/// added latency ever shows up on healthy sessions.
+fn wl_clipboard_holds_bytes(bytes: &[u8]) -> Option<bool> {
+    wl_clipboard_holds_bytes_with_program("wl-paste", bytes)
+}
+
+/// [`wl_clipboard_holds_bytes`] against an explicit `program`.
+fn wl_clipboard_holds_bytes_with_program(program: &str, bytes: &[u8]) -> Option<bool> {
+    use std::os::unix::process::CommandExt;
+
+    const READ_BACK_WAIT: std::time::Duration = std::time::Duration::from_millis(250);
+
+    let mut child = Command::new(program)
+        .args(["--type", WL_CLIPBOARD_TEXT_TYPE])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .process_group(0)
+        .spawn()
+        .ok()?;
+    let Some(stdout) = child.stdout.take() else {
+        kill_wl_paste_probe(&mut child);
+        return None;
+    };
+
+    // wl-paste appends a newline to text payloads unless told not to, so accept
+    // one extra byte instead of depending on the --no-newline option.
+    let limit = bytes.len().saturating_add(1);
+    let (payload_tx, payload_rx) = std::sync::mpsc::channel();
+    let reader = std::thread::Builder::new()
+        .name("herdr-wl-paste-read-back".to_owned())
+        .spawn(move || {
+            let _ = payload_tx.send(read_limited_reader(stdout, limit));
+        });
+    if reader.is_err() {
+        kill_wl_paste_probe(&mut child);
+        return None;
+    }
+
+    let read = match payload_rx.recv_timeout(READ_BACK_WAIT) {
+        Ok(Ok(read)) => read,
+        // A stalled read means the probe's popup surface never gained focus,
+        // which is exactly what keeps wl-copy from taking the selection on a
+        // compositor without a data-control protocol. On a compositor that has
+        // one, neither tool uses a popup, so this stays a bounded guess.
+        Ok(Err(_)) | Err(_) => {
+            kill_wl_paste_probe(&mut child);
+            return Some(false);
+        }
+    };
+    // A reader that stopped at the limit closed its end early, so a forked
+    // worker can still be blocked on the source: never wait for that one.
+    if matches!(read, LimitedRead::Oversized) {
+        kill_wl_paste_probe(&mut child);
+    } else {
+        let _ = child.wait();
+    }
+    if let Ok(reader) = reader {
+        let _ = reader.join();
+    }
+
+    let mut with_newline = bytes.to_vec();
+    with_newline.push(b'\n');
+    match read {
+        LimitedRead::Complete(read) => Some(read == bytes || read == with_newline),
+        LimitedRead::Empty => Some(bytes.is_empty()),
+        LimitedRead::Oversized => Some(false),
+    }
+}
+
+/// Kills the read-back probe and whatever it forked.
+///
+/// The probe is spawned in its own process group, and wl-paste hands the
+/// transfer to a forked worker that inherits the read-back pipe, so killing
+/// only the process we spawned can leave the reader thread without an EOF.
+fn kill_wl_paste_probe(child: &mut std::process::Child) {
+    unsafe {
+        libc::kill(-(child.id() as i32), libc::SIGKILL);
+    }
+    let _ = child.wait();
+}
+
+fn wait_for_wl_copy_startup(mut child: std::process::Child, bytes: &[u8]) -> bool {
     const STARTUP_WAIT: std::time::Duration = std::time::Duration::from_millis(100);
     const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(5);
 
     let deadline = std::time::Instant::now() + STARTUP_WAIT;
     loop {
         match child.try_wait() {
-            Ok(Some(status)) => return status.success(),
+            // A clean exit still has to prove the selection was taken.
+            Ok(Some(status)) => {
+                return status.success() && wl_clipboard_holds_bytes(bytes) != Some(false);
+            }
             Ok(None) if std::time::Instant::now() < deadline => {
                 std::thread::sleep(POLL_INTERVAL);
             }
-            Ok(None) => return detach_clipboard_owner(child),
+            Ok(None) => {
+                if wl_clipboard_holds_bytes(bytes) == Some(false) {
+                    // Alive, and the clipboard does not hold our bytes. On a
+                    // compositor without a data-control protocol that is a
+                    // popup surface that never got focus. Reclaim it so such a
+                    // session does not collect stalled wl-copy processes, and
+                    // let the caller try the next backend.
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return false;
+                }
+                return detach_clipboard_owner(child);
+            }
             Err(_) => {
                 let _ = child.kill();
                 let _ = child.wait();
@@ -1720,6 +1832,20 @@ mod tests {
         permissions.set_mode(0o700);
         std::fs::set_permissions(&fake_wl_copy, permissions)
             .expect("fake wl-copy should be executable");
+        // The clipboard write is only trusted after a read-back, so the session
+        // has to answer wl-paste with the bytes the owner received.
+        let fake_wl_paste = temp_dir.join("wl-paste");
+        std::fs::write(
+            &fake_wl_paste,
+            "#!/bin/sh\n/bin/cat \"$HERDR_TEST_WL_COPY_PAYLOAD\"\n",
+        )
+        .expect("fake wl-paste should be written");
+        let mut permissions = std::fs::metadata(&fake_wl_paste)
+            .expect("fake wl-paste metadata")
+            .permissions();
+        permissions.set_mode(0o700);
+        std::fs::set_permissions(&fake_wl_paste, permissions)
+            .expect("fake wl-paste should be executable");
 
         let test_path = match cleanup.old_path.as_ref() {
             Some(path) => {
@@ -1740,7 +1866,7 @@ mod tests {
         let writer = std::thread::spawn(move || {
             let command = ClipboardCommand {
                 program: "wl-copy",
-                args: &["--type", "text/plain;charset=utf-8"],
+                args: &["--type", WL_CLIPBOARD_TEXT_TYPE],
             };
             let _ = result_tx.send(run_clipboard_command(&command, b"clipboard text"));
         });
@@ -1882,6 +2008,309 @@ mod tests {
 
         assert!(run_clipboard_command(&success, b"clipboard text"));
         assert!(!run_clipboard_command(&failure, b"clipboard text"));
+    }
+
+    /// Fake clipboard backends in a private directory, plus the session
+    /// variables `clipboard_commands` reads. `activate` opts a test into the
+    /// fake backends; `Drop` restores whatever `activate` changed.
+    struct FakeClipboardSession {
+        activated: bool,
+        old_path: Option<std::ffi::OsString>,
+        old_wayland_display: Option<std::ffi::OsString>,
+        old_display: Option<std::ffi::OsString>,
+        dir: std::path::PathBuf,
+    }
+
+    impl FakeClipboardSession {
+        fn new(name: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!("herdr-{name}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).expect("fake clipboard dir should be created");
+            Self {
+                activated: false,
+                old_path: None,
+                old_wayland_display: None,
+                old_display: None,
+                dir,
+            }
+        }
+
+        /// Puts the fake backends in front of PATH and marks the session as a
+        /// local Wayland one. The directory is prepended instead of
+        /// substituted, so tests running in parallel still resolve `sh`, `cat`,
+        /// `sleep` and friends, while the fakes shadow the real helpers.
+        fn activate(&mut self) {
+            self.old_path = std::env::var_os("PATH");
+            self.old_wayland_display = std::env::var_os("WAYLAND_DISPLAY");
+            self.old_display = std::env::var_os("DISPLAY");
+            let test_path = match self.old_path.as_ref() {
+                Some(path) => {
+                    let mut paths = vec![self.dir.clone()];
+                    paths.extend(std::env::split_paths(path));
+                    std::env::join_paths(paths).expect("test path should be valid")
+                }
+                None => self.dir.clone().into_os_string(),
+            };
+            unsafe {
+                std::env::set_var("PATH", test_path);
+                std::env::set_var("WAYLAND_DISPLAY", "wayland-0");
+                std::env::set_var("DISPLAY", ":0");
+            }
+            self.activated = true;
+        }
+
+        /// Writes an executable `program` running the shell `body`.
+        fn script(&self, program: &str, body: &str) -> std::path::PathBuf {
+            use std::os::unix::fs::PermissionsExt;
+
+            let path = self.dir.join(program);
+            std::fs::write(&path, format!("#!/bin/sh\n{body}"))
+                .unwrap_or_else(|err| panic!("fake {program} should be written: {err}"));
+            let mut permissions = std::fs::metadata(&path)
+                .unwrap_or_else(|err| panic!("fake {program} metadata: {err}"))
+                .permissions();
+            permissions.set_mode(0o700);
+            std::fs::set_permissions(&path, permissions)
+                .unwrap_or_else(|err| panic!("fake {program} should be executable: {err}"));
+            path
+        }
+
+        fn file(&self, name: &str) -> std::path::PathBuf {
+            self.dir.join(name)
+        }
+
+        fn recorded(&self, name: &str) -> Option<Vec<u8>> {
+            std::fs::read(self.file(name)).ok()
+        }
+    }
+
+    impl Drop for FakeClipboardSession {
+        fn drop(&mut self) {
+            if self.activated {
+                unsafe {
+                    match self.old_path.take() {
+                        Some(path) => std::env::set_var("PATH", path),
+                        None => std::env::remove_var("PATH"),
+                    }
+                    match self.old_wayland_display.take() {
+                        Some(value) => std::env::set_var("WAYLAND_DISPLAY", value),
+                        None => std::env::remove_var("WAYLAND_DISPLAY"),
+                    }
+                    match self.old_display.take() {
+                        Some(value) => std::env::set_var("DISPLAY", value),
+                        None => std::env::remove_var("DISPLAY"),
+                    }
+                }
+            }
+            let _ = std::fs::remove_dir_all(&self.dir);
+        }
+    }
+
+    #[test]
+    fn verified_wl_copy_skips_the_x11_fallback() {
+        let _guard = env_lock().lock().unwrap();
+        let mut session = FakeClipboardSession::new("verified-wl-copy");
+        session.activate();
+        let payload = session.file("wl-copy-payload");
+        session.script(
+            "wl-copy",
+            &format!("/bin/cat > \"{}\"\n", payload.display()),
+        );
+        session.script("wl-paste", &format!("/bin/cat \"{}\"\n", payload.display()));
+        session.script(
+            "xclip",
+            &format!(
+                "/bin/cat > \"{}\"\n",
+                session.file("xclip-payload").display()
+            ),
+        );
+
+        assert!(write_clipboard(b"verified clipboard text"));
+        assert_eq!(
+            session.recorded("wl-copy-payload").as_deref(),
+            Some(&b"verified clipboard text"[..])
+        );
+        assert_eq!(
+            session.recorded("xclip-payload"),
+            None,
+            "a confirmed Wayland write must not reach the X11 backends"
+        );
+    }
+
+    #[test]
+    fn stalled_wl_copy_falls_back_and_is_reclaimed() {
+        let _guard = env_lock().lock().unwrap();
+        let mut session = FakeClipboardSession::new("stalled-wl-copy");
+        session.activate();
+        let payload = session.file("wl-copy-payload");
+        let pid_file = session.file("owner-pid");
+        session.script(
+            "wl-copy",
+            &format!(
+                "/bin/cat > \"{}\"\n/bin/echo $$ > \"{}\"\nexec /bin/sleep 30\n",
+                payload.display(),
+                pid_file.display()
+            ),
+        );
+        // Without a data-control protocol the compositor only hands the
+        // clipboard to a focused popup surface, so wl-paste stalls here for the
+        // same reason the wl-copy owner never took the selection.
+        session.script("wl-paste", "/bin/sleep 30\n");
+        session.script(
+            "xclip",
+            &format!(
+                "/bin/cat > \"{}\"\n",
+                session.file("xclip-payload").display()
+            ),
+        );
+
+        assert!(write_clipboard(b"stalled wl-copy"));
+        assert_eq!(
+            session.recorded("xclip-payload").as_deref(),
+            Some(&b"stalled wl-copy"[..]),
+            "an unverified Wayland write must reach the next backend"
+        );
+        let owner_pid: u32 = std::fs::read_to_string(&pid_file)
+            .expect("fake wl-copy should record its pid")
+            .trim()
+            .parse()
+            .expect("owner pid should be numeric");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        while process_exists(owner_pid) && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(
+            !process_exists(owner_pid),
+            "a wl-copy that never took the selection should be reclaimed"
+        );
+    }
+
+    #[test]
+    fn cancelled_wl_copy_falls_back_to_the_next_backend() {
+        let _guard = env_lock().lock().unwrap();
+        let mut session = FakeClipboardSession::new("cancelled-wl-copy");
+        session.activate();
+        // wl-copy exits 0 for a cancelled source without ever taking the
+        // selection, which used to be reported as a successful copy.
+        session.script("wl-copy", "/bin/cat > /dev/null\n");
+        session.script("wl-paste", "exit 1\n");
+        session.script(
+            "xclip",
+            &format!(
+                "/bin/cat > \"{}\"\n",
+                session.file("xclip-payload").display()
+            ),
+        );
+
+        assert!(write_clipboard(b"cancelled wl-copy"));
+        assert_eq!(
+            session.recorded("xclip-payload").as_deref(),
+            Some(&b"cancelled wl-copy"[..]),
+            "a cancelled Wayland write must reach the next backend"
+        );
+    }
+
+    #[test]
+    fn wl_clipboard_probe_distinguishes_its_own_bytes() {
+        let session = FakeClipboardSession::new("wl-paste-probe");
+        let program = session.script("wl-paste", "/bin/echo clipboard text\n");
+        let program = program
+            .to_str()
+            .expect("fake wl-paste path should be utf-8");
+
+        assert_eq!(
+            wl_clipboard_holds_bytes_with_program(program, b"clipboard text"),
+            Some(true)
+        );
+        // Same length as the clipboard holds, different content.
+        assert_eq!(
+            wl_clipboard_holds_bytes_with_program(program, b"clipboard TEXT"),
+            Some(false)
+        );
+        // Shorter than the clipboard content, so the read stops at the limit.
+        assert_eq!(
+            wl_clipboard_holds_bytes_with_program(program, b"stale text"),
+            Some(false)
+        );
+        // No output at all: wl-paste bails without writing to stdout.
+        let silent = session.script("wl-paste-silent", "/bin/true\n");
+        assert_eq!(
+            wl_clipboard_holds_bytes_with_program(
+                silent
+                    .to_str()
+                    .expect("silent wl-paste path should be utf-8"),
+                b"clipboard text"
+            ),
+            Some(false)
+        );
+
+        let missing = session.file("missing-tool");
+        assert_eq!(
+            wl_clipboard_holds_bytes_with_program(
+                missing.to_str().expect("missing tool path should be utf-8"),
+                b"clipboard text"
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn stalled_wl_paste_probe_is_killed_with_its_worker() {
+        let session = FakeClipboardSession::new("wl-paste-worker");
+        let worker_pid_file = session.file("worker-pid");
+        // Mirrors wl-paste: the transfer runs in a forked worker that inherits
+        // the read-back pipe, so killing only the probe would leave it holding
+        // the pipe open and the reader thread blocked.
+        let program = session.script(
+            "wl-paste",
+            &format!(
+                "/bin/sleep 30 &\n/bin/echo $! > \"{}\"\nwait\n",
+                worker_pid_file.display()
+            ),
+        );
+        let program = program
+            .to_str()
+            .expect("fake wl-paste path should be utf-8");
+
+        assert_eq!(
+            wl_clipboard_holds_bytes_with_program(program, b"clipboard text"),
+            Some(false)
+        );
+        let worker_pid: u32 = std::fs::read_to_string(&worker_pid_file)
+            .expect("fake wl-paste should record its worker pid")
+            .trim()
+            .parse()
+            .expect("worker pid should be numeric");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        while process_exists(worker_pid) && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(
+            !process_exists(worker_pid),
+            "the read-back probe must take its forked worker down with it"
+        );
+    }
+
+    #[test]
+    fn oversized_clipboard_probe_does_not_wait_for_a_stalled_probe() {
+        let session = FakeClipboardSession::new("wl-paste-oversized");
+        let program = session.script(
+            "wl-paste",
+            "/usr/bin/printf 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'\n/bin/sleep 30\n",
+        );
+        let program = program
+            .to_str()
+            .expect("fake wl-paste path should be utf-8");
+
+        let started = std::time::Instant::now();
+        assert_eq!(
+            wl_clipboard_holds_bytes_with_program(program, b"clipboard text"),
+            Some(false)
+        );
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(2),
+            "a probe that stopped at the read limit must not wait for the probe process"
+        );
     }
 
     #[test]
