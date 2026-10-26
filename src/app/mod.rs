@@ -5,6 +5,8 @@
 
 pub(crate) mod actions;
 mod agent_resume;
+#[cfg(test)]
+mod agent_suspend_tests;
 pub(crate) mod agent_view;
 mod agents;
 pub(crate) use agents::{AGENT_START_SETTLE_DELAY, MAX_AGENT_START_TIMEOUT};
@@ -34,7 +36,7 @@ use std::io;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-const MIN_RENDER_INTERVAL: Duration = Duration::from_millis(16);
+pub(crate) const MIN_RENDER_INTERVAL: Duration = Duration::from_millis(16);
 const GIT_REMOTE_STATUS_REFRESH_INTERVAL: Duration = Duration::from_millis(1500);
 const GIT_REPO_DISCOVERY_REFRESH_INTERVAL: Duration = Duration::from_secs(5 * 60);
 const AUTO_UPDATE_CHECK_INTERVAL: Duration = Duration::from_secs(30 * 60);
@@ -118,6 +120,11 @@ pub struct App {
     pub(crate) git_refresh_in_flight: bool,
     pub(crate) git_refresh_due_after_in_flight: bool,
     pub(crate) git_identity_refresh_requested: bool,
+    /// A refresh worker failed to start; retry it even without a client.
+    pub(crate) git_refresh_spawn_retry_pending: bool,
+    pub(crate) pending_restored_worktree_spaces:
+        Vec<(String, crate::workspace::WorktreeSpaceMembership)>,
+    pub(crate) restored_worktree_validation_retry_at: Option<Instant>,
     pub(crate) git_status_cache: HashMap<std::path::PathBuf, crate::workspace::GitStatusCacheEntry>,
     pub(crate) pending_api_worktree_creates: HashMap<std::path::PathBuf, u64>,
     pub(crate) worktree_read_slots: std::sync::Arc<tokio::sync::Semaphore>,
@@ -528,13 +535,6 @@ impl App {
 
         state.terminals = restored_terminals;
 
-        for ws_idx in 0..state.workspaces.len() {
-            let cwd = state.workspaces[ws_idx]
-                .resolved_identity_cwd_from(&state.terminals, &restored_terminal_runtimes);
-            state.workspaces[ws_idx].cached_git_branch =
-                cwd.as_deref().and_then(crate::workspace::git_branch);
-        }
-
         // Background auto-update is disabled for non-persistent test apps
         // and in debug/test builds so local development never mutates the
         // running binary out from under spawned test processes.
@@ -544,9 +544,11 @@ impl App {
         );
         if manifest_check_enabled {
             let manifest_update_tx = event_tx.clone();
-            std::thread::spawn(move || {
+            if let Err(err) = crate::thread_spawn::spawn_named("herdr-manifest-check", move || {
                 crate::detect::manifest_update::auto_update(manifest_update_tx)
-            });
+            }) {
+                tracing::warn!(err = %err, "failed to spawn agent manifest check thread");
+            }
         }
 
         let last_focus = state.active.and_then(|idx| {
@@ -573,6 +575,9 @@ impl App {
             git_refresh_in_flight: false,
             git_refresh_due_after_in_flight: false,
             git_identity_refresh_requested: false,
+            git_refresh_spawn_retry_pending: false,
+            pending_restored_worktree_spaces: Vec::new(),
+            restored_worktree_validation_retry_at: None,
             git_status_cache: HashMap::new(),
             pending_api_worktree_creates: HashMap::new(),
             worktree_read_slots: std::sync::Arc::new(tokio::sync::Semaphore::new(8)),
@@ -620,6 +625,7 @@ impl App {
         };
         app.configure_tab_bar_status(&config.ui.tab_bar_right, &config.ui.tab_bar_right_separator);
         app.configure_window_title(&config.ui.window_title);
+        app.refresh_restored_workspace_git_metadata();
         app
     }
 
@@ -675,6 +681,7 @@ impl App {
                 .get(idx)
                 .and_then(|ws| ws.focused_pane_id().map(|pane_id| (idx, pane_id)))
         });
+        app.refresh_restored_workspace_git_metadata();
         Ok(app)
     }
 
@@ -2750,6 +2757,83 @@ mod tests {
         match original_shell {
             Some(value) => std::env::set_var("SHELL", value),
             None => std::env::remove_var("SHELL"),
+        }
+    }
+
+    #[tokio::test]
+    async fn hidden_panes_start_at_the_size_their_tab_layout_gives_them() {
+        let mut app = test_app();
+        let mut visible = Workspace::test_new("visible-with-tiny-first-pane");
+        let first = visible.tabs[0].root_pane;
+        for _ in 0..4 {
+            visible.tabs[0].layout.focus_pane(first);
+            visible.test_split(ratatui::layout::Direction::Vertical);
+        }
+        app.state.workspaces = vec![visible];
+        app.state.ensure_test_terminals();
+        app.state.active = Some(0);
+        app.state.selected = 0;
+        let area = Rect::new(0, 0, 120, 40);
+        crate::ui::compute_view_without_resizing_panes(
+            &mut app.state,
+            &app.terminal_runtimes,
+            area,
+        );
+        assert!(app.state.view.pane_infos[0].rect.height <= 3);
+
+        let size_of = |app: &App, ws_idx: usize, pane_id| {
+            app.state
+                .runtime_for_pane_in_workspace(&app.terminal_runtimes, ws_idx, pane_id)
+                .unwrap()
+                .current_size()
+        };
+        let relayout = |app: &App, ws_idx: usize| {
+            crate::ui::resize_tab_surface(
+                &app.state,
+                &app.terminal_runtimes,
+                ws_idx,
+                0,
+                area,
+                crate::kitty_graphics::HostCellSize::default(),
+            );
+        };
+
+        let ws_idx = app
+            .create_workspace_with_options(std::env::temp_dir(), false)
+            .unwrap();
+        assert_eq!(app.state.active, Some(0));
+        let root = app.state.workspaces[ws_idx].tabs[0].root_pane;
+        let spawned = size_of(&app, ws_idx, root);
+        relayout(&app, ws_idx);
+        assert_eq!(size_of(&app, ws_idx, root), spawned);
+        assert!(spawned.0 > 30, "hidden root spawned at {spawned:?}");
+
+        let response =
+            app.handle_api_request_after_internal_events_drained(crate::api::schema::Request {
+                id: "req_hidden_split_size".into(),
+                method: crate::api::schema::Method::PaneSplit(
+                    crate::api::schema::PaneSplitParams {
+                        workspace_id: None,
+                        target_pane_id: Some(app.pane_info(ws_idx, root).unwrap().pane_id),
+                        direction: crate::api::schema::SplitDirection::Down,
+                        ratio: Some(0.3),
+                        cwd: None,
+                        focus: false,
+                        right_click: Default::default(),
+                        env: Default::default(),
+                    },
+                ),
+            });
+        let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+        let (_, new_pane) = app
+            .parse_pane_id(response["result"]["pane"]["pane_id"].as_str().unwrap())
+            .unwrap();
+        let spawned = size_of(&app, ws_idx, new_pane);
+        relayout(&app, ws_idx);
+        assert_eq!(size_of(&app, ws_idx, new_pane), spawned);
+
+        for (_terminal_id, runtime) in app.terminal_runtimes.drain().collect::<Vec<_>>() {
+            runtime.shutdown();
         }
     }
 

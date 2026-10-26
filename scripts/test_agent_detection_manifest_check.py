@@ -29,17 +29,30 @@ path = "{path}"
 '''
 
 
+STAGED_BUNDLED_GROK_VERSION = "2026.10.05.1"
+STAGED_PUBLISHED_GROK_VERSION = "2026.10.05.0"
+
+
+def grok_manifest(version: str, min_engine_version: int) -> str:
+    return f'''id = "grok"
+version = "{version}"
+min_engine_version = {min_engine_version}
+updated_at = "2026-10-05T00:00:00Z"
+
+[[rules]]
+id = "idle"
+state = "idle"
+contains = ["ready"]
+'''
+
+
 def staged_grok_dirs(root: Path) -> tuple[Path, Path]:
     bundled = root / "bundled"
     published = root / "published"
     bundled.mkdir()
     published.mkdir()
-    (bundled / "grok.toml").write_bytes(
-        (check.DEFAULT_BUNDLED_DIR / "grok.toml").read_bytes()
-    )
-    (published / "grok.toml").write_bytes(
-        (check.DEFAULT_PUBLISHED_DIR / "grok.toml").read_bytes()
-    )
+    (bundled / "grok.toml").write_text(grok_manifest(STAGED_BUNDLED_GROK_VERSION, 3))
+    (published / "grok.toml").write_text(grok_manifest(STAGED_BUNDLED_GROK_VERSION, 3))
     (published / "index.toml").write_text(catalog("grok", "grok.toml"))
     return bundled, published
 
@@ -95,22 +108,11 @@ class AgentDetectionManifestCheckTests(unittest.TestCase):
                 check.validate_catalog(website, bundled_manifests, engine_version=1)
 
     def staged_pair(self, root: Path) -> tuple[Path, Path, str]:
-        """Bundled 2026.09.18.2 with a deliberately regressed published copy,
+        """Bundled engine-3 grok with a deliberately regressed published copy,
         as the staged-exception table used to excuse; returns its digest."""
         bundled, website = staged_grok_dirs(root)
         published = website / "grok.toml"
-        published.write_text(
-            'id = "grok"\n'
-            'version = "2026.09.18.1"\n'
-            'min_engine_version = 2\n'
-            'updated_at = "2026-09-18T00:00:00Z"\n'
-            'aliases = ["grok-build"]\n'
-            "\n"
-            '[[rules]]\n'
-            'id = "idle"\n'
-            'state = "idle"\n'
-            'contains = ["ready"]\n'
-        )
+        published.write_text(grok_manifest(STAGED_PUBLISHED_GROK_VERSION, 2))
         return bundled, website, hashlib.sha256(published.read_bytes()).hexdigest()
 
     def test_allows_explicitly_staged_published_manifest(self):
@@ -119,7 +121,13 @@ class AgentDetectionManifestCheckTests(unittest.TestCase):
             bundled_manifests = check.load_manifest_dir(bundled, engine_version=3)
             with patch.dict(
                 check.STAGED_PUBLISHED_MANIFESTS,
-                {"grok": ("2026.09.18.2", "2026.09.18.1", digest)},
+                {
+                    "grok": (
+                        STAGED_BUNDLED_GROK_VERSION,
+                        STAGED_PUBLISHED_GROK_VERSION,
+                        digest,
+                    )
+                },
             ):
                 check.validate_catalog(website, bundled_manifests, engine_version=3)
 
@@ -132,7 +140,13 @@ class AgentDetectionManifestCheckTests(unittest.TestCase):
             bundled_manifests = check.load_manifest_dir(bundled, engine_version=3)
             with patch.dict(
                 check.STAGED_PUBLISHED_MANIFESTS,
-                {"grok": ("2026.09.18.2", "2026.09.18.1", digest)},
+                {
+                    "grok": (
+                        STAGED_BUNDLED_GROK_VERSION,
+                        STAGED_PUBLISHED_GROK_VERSION,
+                        digest,
+                    )
+                },
             ):
                 with self.assertRaisesRegex(check.CheckError, "lower than bundled"):
                     check.validate_catalog(website, bundled_manifests, engine_version=3)
