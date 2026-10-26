@@ -19,7 +19,7 @@ pub(super) fn command() -> Command {
                 .value_parser(["local", "server"])
                 .help("Choose local or server keybindings for remote attach"),
         )
-        .arg(flag("handoff").help("Opt into live handoff for update or remote attach"))
+        .arg(flag("handoff").help("Opt into live handoff for remote attach"))
         .arg(flag("default-config").help("Print default configuration and exit"))
         .arg(flag("skill").help("Print the agent skill file and exit"))
         .arg(
@@ -118,8 +118,8 @@ fn write_requested_help(
 
 fn update_command() -> Command {
     Command::new("update")
-        .about("Download and install the latest version")
-        .arg(flag("handoff").help("Try live handoff after installing"))
+        .about("Show how to install updates")
+        .arg(flag("handoff").help("No effect; kept for compatibility"))
 }
 
 fn status_command() -> Command {
@@ -1385,6 +1385,15 @@ mod tests {
             path.join(" ")
         );
         String::from_utf8(output).unwrap()
+    }
+
+    #[test]
+    fn update_help_does_not_claim_self_update() {
+        let help = long_help(&["update"]);
+        assert!(help.contains("Show how to install updates"), "{help}");
+        assert!(!help.contains("Download and install"), "{help}");
+        assert!(!help.contains("live handoff after installing"), "{help}");
+        assert!(help.contains("No effect; kept for compatibility"), "{help}");
     }
 
     #[test]

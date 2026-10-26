@@ -597,7 +597,7 @@ fn main() -> io::Result<()> {
         println!("       herdr-screen --remote <ssh-target> [--session <name>]");
         println!("       herdr-screen session attach <name>");
         println!("       herdr-screen completion zsh");
-        println!("       herdr-screen update [--handoff]");
+        println!("       herdr-screen update");
         println!("       herdr-screen channel set <stable|preview>");
         println!("       herdr-screen machine <subcommand> ...");
         println!("       herdr-screen server stop");
@@ -622,10 +622,7 @@ fn main() -> io::Result<()> {
                 "herdr-screen status [server|client]",
                 "Show local client and running server status",
             ),
-            (
-                "herdr-screen update",
-                "Download and install the latest version",
-            ),
+            ("herdr-screen update", "Show how to install updates"),
             (
                 "herdr-screen completion zsh",
                 "Generate shell completions for zsh",
@@ -715,7 +712,7 @@ fn main() -> io::Result<()> {
         println!("  --remote <target>   Attach through SSH to a remote Herdr server");
         println!("  --remote-keybindings <local|server>");
         println!("                      Keybindings for --remote app attach (default: local)");
-        println!("  --handoff           Opt into live handoff for update or remote attach");
+        println!("  --handoff           Opt into live handoff for remote attach");
         println!("  --default-config    Print default configuration and exit");
         println!("  --skill             Print the agent skill file and exit");
         println!("  --version, -V       Print version and exit");
