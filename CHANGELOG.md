@@ -86,7 +86,19 @@ Initial herdr-screen release: a GNU screen edition hard fork of Herdr 0.9.3
   a pending confirmation raises the usual needs-attention notification and
   sound; panes report `idle` while reading mail, so the pager does not.
 
+### Changed
+- Panes that enable only modifyOtherKeys level 1 are treated as having no
+  enhanced keyboard protocol. In those panes the plain-shell key table now
+  applies: Shift+Enter, Ctrl+Enter, Ctrl+Shift+Enter, and Ctrl+M send Enter;
+  Ctrl+I and Ctrl+Tab send Tab; Ctrl+[ sends Esc; and Ctrl+Shift+letter sends
+  the bare control byte. Alt keeps its ESC prefix, while Super chords are not
+  forwarded. Level 2 and Kitty keyboard panes still receive the modified key
+  reports.
+
 ### Fixed
+- Backported the relevant Herdr 0.9.4 and 0.9.5 fixes for keyboard encoding,
+  pane sizing, session restore, SSH agent probing, server shutdown, thread
+  spawn resilience, agent detection, and macOS input. (#57)
 - `ctrl+a a` (prefix followed by the bare prefix key) now sends a literal
   `ctrl+a` to the shell, like GNU screen's `meta` binding, so readline's
   start-of-line jump works again. `ctrl+a ctrl+a` still toggles the last
