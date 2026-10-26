@@ -48,15 +48,26 @@ pub(super) fn run_logs_define_command(args: &[String]) -> std::io::Result<i32> {
             print_logs_define_help();
             Ok(0)
         }
-        name => define_service(name, args.get(1)),
+        name => define_service(name, command_from_args(args)),
     }
+}
+
+/// Join every argument after the service name so multi-word commands survive.
+fn command_from_args(args: &[String]) -> Option<String> {
+    let command = args
+        .iter()
+        .skip(1)
+        .map(String::as_str)
+        .collect::<Vec<_>>()
+        .join(" ");
+    (!command.trim().is_empty()).then_some(command)
 }
 
 fn services_path() -> PathBuf {
     config::config_dir().join(LOGS_SERVICES_FILE)
 }
 
-fn define_service(name: &str, target: Option<&String>) -> std::io::Result<i32> {
+fn define_service(name: &str, target: Option<String>) -> std::io::Result<i32> {
     let Some(target) = target else {
         eprintln!("usage: herdr logs-define <ServiceName> <path-or-command>");
         return Ok(2);
@@ -190,5 +201,24 @@ mod tests {
             Some("tail -F /var/log/custom.log")
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn command_from_args_keeps_every_token() {
+        let args = ["demo", "tail", "-F", "/tmp/demo.log"]
+            .map(str::to_string)
+            .to_vec();
+        assert_eq!(
+            command_from_args(&args).as_deref(),
+            Some("tail -F /tmp/demo.log")
+        );
+    }
+
+    #[test]
+    fn command_from_args_rejects_a_missing_command() {
+        let args = ["demo"].map(str::to_string).to_vec();
+        assert_eq!(command_from_args(&args), None);
+        let blank = ["demo", "  "].map(str::to_string).to_vec();
+        assert_eq!(command_from_args(&blank), None);
     }
 }
