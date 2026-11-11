@@ -87,6 +87,10 @@ Initial herdr-screen release: a GNU screen edition hard fork of Herdr 0.9.3
   sound; panes report `idle` while reading mail, so the pager does not.
 
 ### Changed
+- `--version` now reports the upstream release the fork is rebased on,
+  `herdr-screen <release> (herdr 0.9.5)`, instead of the 0.9.3 it was first
+  cut from. The same runtime version feeds the plugin `min_herdr_version`
+  check, so manifests requiring up to Herdr 0.9.5 are accepted.
 - Panes that enable only modifyOtherKeys level 1 are treated as having no
   enhanced keyboard protocol. In those panes the plain-shell key table now
   applies: Shift+Enter, Ctrl+Enter, Ctrl+Shift+Enter, and Ctrl+M send Enter;
